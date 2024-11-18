@@ -1,5 +1,4 @@
-from prod.logger_output import log
-from prod.order_management import open_position, close_position
+from order_management import open_position, close_position
 from state import *
 
 MAKER_FEE = 0.0002  # 0.02% для мейкеров

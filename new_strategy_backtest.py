@@ -1,5 +1,5 @@
-from prod.indicators import calculate_indicators
-from prod.trade_logic import trade_logic, determine_trend
+from indicators import calculate_indicators
+from trade_logic import trade_logic, determine_trend
 
 import pandas as pd
 from binance.client import Client

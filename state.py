@@ -1,5 +1,5 @@
-from prod.config import BacktestConfig
-from prod.logger_output import log
+from config import BacktestConfig
+from logger_output import log
 
 
 class BacktestState:

@@ -1,5 +1,5 @@
 from log_trade import log_trade
-from prod.config import StrategyConfig
+from config import StrategyConfig
 from state import *
 
 

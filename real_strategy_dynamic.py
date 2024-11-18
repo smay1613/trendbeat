@@ -2,12 +2,11 @@ import time
 
 import pandas as pd
 
+from config import BacktestConfig, StrategyConfig
+from indicators import calculate_indicators
+from logger_output import log
 from new_strategy_backtest import client, get_historical_data
-from prod.config import BacktestConfig, StrategyConfig
-from prod.indicators import calculate_indicators
-from prod.logger_output import log
-from prod.state import MarketState
-from prod.trade_logic import trade_logic, determine_trend, rsi_conditions
+from trade_logic import trade_logic, determine_trend, rsi_conditions
 
 # Загрузить начальные исторические данные
 historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.lookback_period, "now")

@@ -1,11 +1,8 @@
-
-import time
-
-from prod.config import BacktestConfig, StrategyConfig, UserConfig
-from prod.logger_output import log
-from prod.state import PositionState
 from binance.client import Client
 
+from config import BacktestConfig, StrategyConfig, UserConfig
+from logger_output import log
+from state import PositionState
 
 client = Client(UserConfig.TESTNET_API_KEY, UserConfig.TESTNET_API_SECRET, testnet=UserConfig.testnet_orders)
 

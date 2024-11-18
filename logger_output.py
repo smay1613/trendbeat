@@ -1,9 +1,7 @@
-import asyncio
 import logging
 
-from config import *
 from telebot import TeleBot
-
+from config import *
 
 # Инициализируем бота
 bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
