@@ -58,8 +58,8 @@ while True:
             trade_logic(row, timestamp=new_data.index[-1], latest_price=latest_price)
 
         # Пауза перед повторной проверкой (можно настроить интервал проверки)
-        time.sleep(5)  # Например, 1 минута
+        time.sleep(60)  # Например, 1 минута
 
     except Exception as e:
         log(f"Error occurred: {e}")
-        time.sleep(5)  # Ожидание перед повторной попыткой
+        time.sleep(300)  # Ожидание перед повторной попыткой
