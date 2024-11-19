@@ -1,3 +1,4 @@
+import threading
 import time
 
 import pandas as pd
@@ -6,13 +7,15 @@ from config import BacktestConfig, StrategyConfig
 from indicators import calculate_indicators
 from logger_output import log
 from new_strategy_backtest import client, get_historical_data
+from fake_server import run_web_server
 from trade_logic import trade_logic, determine_trend, rsi_conditions
+
+threading.Thread(target=run_web_server, daemon=True).start()
 
 # Загрузить начальные исторические данные
 historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.lookback_period, "now")
 historical_data = calculate_indicators(historical_data)
 log(f"History loaded ({BacktestConfig.lookback_period})")
-
 # Бесконечный цикл для подгрузки новых данных и выполнения расчета
 while True:
     try:
