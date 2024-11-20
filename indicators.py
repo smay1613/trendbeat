@@ -18,10 +18,9 @@ def calculate_indicators(df):
 
     # Добавление уровней поддержки и сопротивления
     # TODO: tema
-    # df['Support'] = df['low'].rolling(window=20).min()  # 20-периодная поддержка
-    # df['Resistance'] = df['high'].rolling(window=20).max()  # 20-периодное сопротивление
+    df['Support'] = df['low'].rolling(window=100).min()  # 20-периодная поддержка
+    df['Resistance'] = df['high'].rolling(window=100).max()  # 20-периодное сопротивление
 
-    # TODO: wtf?
-    df['Average_Volume'] = df['volume'].rolling(window=20).mean()
+    df['Average_Volume'] = df['volume'].rolling(window=50).mean()
 
     return df

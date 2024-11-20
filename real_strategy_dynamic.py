@@ -20,7 +20,8 @@ log(f"History loaded ({BacktestConfig.lookback_period})")
 while True:
     try:
         # Получить последнюю свечу с сервера
-        new_kline = client.futures_klines(symbol=BacktestConfig.symbol, interval=BacktestConfig.interval, limit=1)
+        new_kline = client.futures_klines(symbol=BacktestConfig.symbol, interval=BacktestConfig.interval, limit=2)
+        new_kline = [new_kline[0]]
         new_data = pd.DataFrame(new_kline, columns=[
             'timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time',
             'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
@@ -37,7 +38,6 @@ while True:
 
         # Проверка, добавлена ли новая свеча
         if new_data.index[-1] > historical_data.index[-1]:
-
             # Добавить новую свечу к историческим данным
             historical_data = pd.concat([historical_data, new_data])
             historical_data = calculate_indicators(historical_data)  # Пересчитать индикаторы
@@ -50,6 +50,7 @@ while True:
             log(f"{BacktestConfig.symbol} | {int(formatted_data['close'])}$ ({int(formatted_data['low'])}$-{int(formatted_data['high'])}$)"
                 f"\nVol: {formatted_data['volume']:.2f} (avg: {formatted_data['Average_Volume']:.2f})"
                 f"\nADX: {formatted_data['ADX']:.2f} (min: {StrategyConfig.min_adx})"
+                f"\nSupport (100h): {formatted_data['Support']:.0f} | Resistance (100h): {formatted_data['Resistance']:.0f}"
                 f"\nEMA 7: {formatted_data['EMA_7']:.0f} | EMA 25: {formatted_data['EMA_25']:.0f} | EMA 50: {formatted_data['EMA_99']:.0f}"
                 f"\nRSI 6: {formatted_data['RSI_6']:.1f} ({rsi_conditions(formatted_data['RSI_6'])}) | RSI 15: {formatted_data['RSI_15']:.2f}"
                 f"\nMarket trend: {trend}|{trend_type}")
