@@ -8,7 +8,7 @@ bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
 
 def send_telegram_message(message):
     try:
-        bot.send_message(chat_id=UserConfig.CHAT_ID, text=message)
+        bot.send_message(chat_id=UserConfig.CHAT_ID, text=message, parse_mode="Markdown")
     except Exception as e:
         print(f"Failed to send message: {e}")
 

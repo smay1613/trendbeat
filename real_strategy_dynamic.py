@@ -47,13 +47,31 @@ while True:
 
             trend, trend_type = determine_trend(row)
             formatted_data = {key: value for key, value in list(row.to_dict().items())}
-            log(f"{BacktestConfig.symbol} | {int(formatted_data['close'])}$ ({int(formatted_data['low'])}$-{int(formatted_data['high'])}$)"
-                f"\nVol: {formatted_data['volume']:.2f} (avg: {formatted_data['Average_Volume']:.2f})"
-                f"\nADX: {formatted_data['ADX']:.2f} (min: {StrategyConfig.min_adx})"
-                f"\nSupport (100h): {formatted_data['Support']:.0f} | Resistance (100h): {formatted_data['Resistance']:.0f}"
-                f"\nEMA 7: {formatted_data['EMA_7']:.0f} | EMA 25: {formatted_data['EMA_25']:.0f} | EMA 50: {formatted_data['EMA_99']:.0f}"
-                f"\nRSI 6: {formatted_data['RSI_6']:.1f} ({rsi_conditions(formatted_data['RSI_6'])}) | RSI 15: {formatted_data['RSI_15']:.2f}"
-                f"\nMarket trend: {trend}|{trend_type}")
+            # log(f"{BacktestConfig.symbol} | {int(formatted_data['close'])}$ ({int(formatted_data['low'])}$-{int(formatted_data['high'])}$)"
+            #     f"\nVol: {formatted_data['volume']:.2f} (avg: {formatted_data['Average_Volume']:.2f})"
+            #     f"\nADX: {formatted_data['ADX']:.2f} (min: {StrategyConfig.min_adx})"
+            #     f"\nSupport (100h): {formatted_data['Support']:.0f} | Resistance (100h): {formatted_data['Resistance']:.0f}"
+            #     f"\nEMA 7: {formatted_data['EMA_7']:.0f} | EMA 25: {formatted_data['EMA_25']:.0f} | EMA 50: {formatted_data['EMA_99']:.0f}"
+            #     f"\nRSI 6: {formatted_data['RSI_6']:.1f} ({rsi_conditions(formatted_data['RSI_6'])}) | RSI 15: {formatted_data['RSI_15']:.2f}"
+            #     f"\nMarket trend: {trend}|{trend_type}")
+
+            log(
+            f"*{BacktestConfig.symbol} Market Overview*\n"
+            f"📌 *Market Trend*: `{trend}|{trend_type}`\n"
+            f"📈 *Trend Strength (ADX)*: `{formatted_data['ADX']:.2f}` _(min: {StrategyConfig.min_adx})_\n"
+            
+            f"\n💰 *Current Price*: `{int(formatted_data['close'])}$ ({int(formatted_data['low'])}$-{int(formatted_data['high'])}$)`\n"
+            f"📊 *Volume*: `{formatted_data['volume']:.2f}` (avg: _{formatted_data['Average_Volume']:.2f}_)\n"
+            f"📊 *EMA Indicators*:\n"
+            f"- EMA 7: `{formatted_data['EMA_7']:.0f}`\n"
+            f"- EMA 25: `{formatted_data['EMA_25']:.0f}`\n"
+            f"- EMA 50: `{formatted_data['EMA_99']:.0f}`\n"
+            f"\n🟩 *RSI*:\n"  
+            f"- RSI 6: `{formatted_data['RSI_6']:.1f} ({rsi_conditions(formatted_data['RSI_6'])})`\n"
+            f"- RSI 15: `{formatted_data['RSI_15']:.1f}`\n"
+            f"\n📉 *Support (100h)*: `{formatted_data['Support']:.0f}`\n"
+            f"📈 *Resistance (100h)*: `{formatted_data['Resistance']:.0f}`\n"
+            )
 
             latest_price = row['close']
             trade_logic(row, timestamp=new_data.index[-1], latest_price=latest_price)
