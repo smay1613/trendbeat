@@ -17,9 +17,13 @@ def calculate_indicators(df):
     # df['MACD'] = ta.trend.macd_diff(price)
 
     # Добавление уровней поддержки и сопротивления
-    # TODO: tema
-    df['Support'] = df['low'].rolling(window=100).min()  # 20-периодная поддержка
-    df['Resistance'] = df['high'].rolling(window=100).max()  # 20-периодное сопротивление
+    df['Support_7'] = df['low'].rolling(window=7).min()  # 20-периодная поддержка
+    df['Support_25'] = df['low'].rolling(window=25).min()  # 20-периодная поддержка
+    df['Support_50'] = df['low'].rolling(window=50).min()  # 20-периодная поддержка
+
+    df['Resistance_7'] = df['high'].rolling(window=7).max()  # 20-периодное сопротивление
+    df['Resistance_25'] = df['high'].rolling(window=25).max()  # 20-периодное сопротивление
+    df['Resistance_50'] = df['high'].rolling(window=50).max()  # 20-периодное сопротивление
 
     df['Average_Volume'] = df['volume'].rolling(window=50).mean()
 
