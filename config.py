@@ -31,6 +31,7 @@ class BacktestConfig:
     lookback_period = '7 days ago UTC'
     start_date = '1 Jun 2024'
     end_date = '13 Sep 2024'
+    interval_period = 'h'
 
 class RealTimeConfig:
     notify = True

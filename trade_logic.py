@@ -13,18 +13,6 @@ def calculate_position_size(price, atr):
     position_size = 300.0 #risk_per_trade / atr  # учитываем волатильность
     return position_size * BacktestConfig.LEVERAGE
 
-def rsi_conditions(rsi):
-    if rsi > 90:
-        return "strong overbuy"
-    elif rsi > 70:
-        return "overbuy"
-    elif rsi < 30:
-        return "oversell"
-    elif rsi < 20:
-        return "strong oversell"
-
-    return "neutral"
-
 def determine_trend(row):
     ema_7 = row['EMA_7']
     ema_25 = row['EMA_25']

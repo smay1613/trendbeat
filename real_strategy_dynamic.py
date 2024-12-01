@@ -8,12 +8,49 @@ from indicators import calculate_indicators
 from logger_output import log
 from new_strategy_backtest import client, get_historical_data
 from fake_server import run_web_server
-from trade_logic import trade_logic, determine_trend, rsi_conditions
+from trade_logic import trade_logic, determine_trend
+
+
+def rsi_conditions(rsi):
+    if rsi > 90:
+        return "strong overbuy"
+    elif rsi > 70:
+        return "overbuy"
+    elif rsi < 30:
+        return "oversell"
+    elif rsi < 20:
+        return "strong oversell"
+
+    return "neutral"
+
+
+def rsi_condition_icon(rsi):
+    condition = rsi_conditions(rsi)
+    return "🔴" if "oversell" in condition else \
+        "🟡" if "overbuy" in condition else \
+            '🟢'
+
+
+def decision_icon(is_good):
+    return '✅' if is_good else '⚠️'
+
+
+def trend_icon(trend, type):
+    return "🔼" if trend == "LONG" and type == "WEAK" else "⏫" if trend == "LONG" else \
+        "🔽" if type == "WEAK" else "⏬"
+
+
+def get_price(symbol):
+    # Получение текущей рыночной цены
+    ticker = client.futures_symbol_ticker(symbol=symbol)
+    return float(ticker['price'])
+
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
 # Загрузить начальные исторические данные
-historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.lookback_period, "now")
+historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.lookback_period,
+                                      "now")
 historical_data = calculate_indicators(historical_data)
 log(f"History loaded ({BacktestConfig.lookback_period})")
 # Бесконечный цикл для подгрузки новых данных и выполнения расчета
@@ -47,36 +84,30 @@ while True:
 
             trend, trend_type = determine_trend(row)
             formatted_data = {key: value for key, value in list(row.to_dict().items())}
-            # log(f"{BacktestConfig.symbol} | {int(formatted_data['close'])}$ ({int(formatted_data['low'])}$-{int(formatted_data['high'])}$)"
-            #     f"\nVol: {formatted_data['volume']:.2f} (avg: {formatted_data['Average_Volume']:.2f})"
-            #     f"\nADX: {formatted_data['ADX']:.2f} (min: {StrategyConfig.min_adx})"
-            #     f"\nSupport (100h): {formatted_data['Support']:.0f} | Resistance (100h): {formatted_data['Resistance']:.0f}"
-            #     f"\nEMA 7: {formatted_data['EMA_7']:.0f} | EMA 25: {formatted_data['EMA_25']:.0f} | EMA 50: {formatted_data['EMA_99']:.0f}"
-            #     f"\nRSI 6: {formatted_data['RSI_6']:.1f} ({rsi_conditions(formatted_data['RSI_6'])}) | RSI 15: {formatted_data['RSI_15']:.2f}"
-            #     f"\nMarket trend: {trend}|{trend_type}")
+
+            def format_price(price):
+                return f'{int(price):,}$'
 
             log(
-            f"*{BacktestConfig.symbol} Market Overview*\n"
-            f"📌 *Market Trend*: `{trend}|{trend_type}`\n"
-            f"📈 *Trend Strength (ADX)*: `{formatted_data['ADX']:.0f}`/`{StrategyConfig.min_adx}`\n"
-            
-            f"\n💰 *Price*: `{int(formatted_data['close']):,}$ ({int(formatted_data['low']):,}$-{int(formatted_data['high']):,}$)`\n"
-            f"📊 *Volume*: `{formatted_data['volume']:.0f}`/`{formatted_data['Average_Volume']:.0f}`\n"
-            f"\n📊 *EMA Indicators*:\n"
-            f"- \[7]: `{int(formatted_data['EMA_7']):,}`\n"
-            f"- \[25]: `{int(formatted_data['EMA_25']):,}`\n"
-            f"- \[50]: `{int(formatted_data['EMA_99']):,}`\n"
-            f"\n🟩 *RSI*:\n"
-            f"- \[6]: `{formatted_data['RSI_6']:.1f} ({rsi_conditions(formatted_data['RSI_6'])})`\n"
-            f"- \[15]: `{formatted_data['RSI_15']:.1f}`\n"
-            f"\n📉 *Support*\n"
-            f"- \[7]: `{int(formatted_data['Support_7']):,}`\n"
-            f"- \[25]: `{int(formatted_data['Support_25']):,}`\n"
-            f"- \[50]: `{int(formatted_data['Support_50']):,}`\n"
-            f"\n📈 *Resistance*\n"
-            f"- \[7]: `{int(formatted_data['Resistance_7']):,}`\n"
-            f"- \[25]: `{int(formatted_data['Resistance_25']):,}`\n"
-            f"- \[50]: `{int(formatted_data['Resistance_50']):,}`\n"
+                f"*{BacktestConfig.symbol} Market Overview*\n"
+                f"📌 *Market Trend*: `{trend}|{trend_type}` {trend_icon(trend, trend_type)}\n"
+                f"📈 *Trend Strength (ADX)*: `{formatted_data['ADX']:.0f}`/`{StrategyConfig.min_adx}` {decision_icon(formatted_data['ADX'] > StrategyConfig.min_adx)}\n"
+                f"\n💰 *Price*: `{format_price(formatted_data['close'])} ({format_price(formatted_data['low'])}-{format_price(formatted_data['high'])})`\n"
+                f"📊 *Volume*: `{formatted_data['volume']:.0f}`/`{formatted_data['Average_Volume']:.0f} {decision_icon(formatted_data['volume'] > formatted_data['Average_Volume'])}`\n"
+                f"\n📊 *EMA Indicators* {'🔺' if trend == 'LONG' else '🔻'}\n"
+                f"- Current \[_7{BacktestConfig.interval_period}_]: `{format_price(formatted_data['EMA_7'])}`\n"
+                f"- Short term \[_25{BacktestConfig.interval_period}_]: `{format_price(formatted_data['EMA_25'])}`\n"
+                f"- Mid term \[_50{BacktestConfig.interval_period}_]: `{format_price(formatted_data['EMA_99'])}`\n"
+                f"\n{rsi_condition_icon(formatted_data['RSI_6'])} *RSI* \[_6{BacktestConfig.interval_period}_]: "
+                f"`{formatted_data['RSI_6']:.1f}` (_{rsi_conditions(formatted_data['RSI_6'])}_)\n"
+                f"\n📉 *Support*\n"
+                f"- Current \[_7{BacktestConfig.interval_period}_]: `{format_price(formatted_data['Support_7'])}`\n"
+                f"- Short term \[_25{BacktestConfig.interval_period}_]: `{format_price(formatted_data['Support_25'])}`\n"
+                f"- Mid term \[_50{BacktestConfig.interval_period}_]: `{format_price(formatted_data['Support_50'])}`\n"
+                f"\n📈 *Resistance*\n"
+                f"- Current \[_7{BacktestConfig.interval_period}_]: `{format_price(formatted_data['Resistance_7'])}`\n"
+                f"- Short term \[_25{BacktestConfig.interval_period}_]: `{format_price(formatted_data['Resistance_25'])}`\n"
+                f"- Mid term \[_50{BacktestConfig.interval_period}_]: `{format_price(formatted_data['Resistance_50'])}`\n"
             )
 
             latest_price = row['close']
