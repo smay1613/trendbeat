@@ -1,3 +1,5 @@
+import datetime
+
 from order_management import open_position, close_position
 from state import *
 
@@ -10,36 +12,95 @@ def calculate_commission(size, is_taker=True):
     commission = size * fee_rate
     return commission
 
-def log_trade(timestamp, trade_type, price, size, comment):
-    # Расчет комиссии за сделку
+def update_balance_and_stats(timestamp, trade_type, price, size, comment, profit_loss, user_data, user_id):
     commission = calculate_commission(size)
-    BacktestState.total_commission += commission
 
-    profit_loss = 0.0
+    user_balance = user_data.balance
+    user_balance.total_commission += commission
+    user_balance.cumulative_profit_loss += profit_loss
+
+    user_stats = user_data.stats
 
     if "Open" in trade_type:
-        PositionState.allocated_capital += size
-        BacktestState.current_capital -= size / BacktestConfig.LEVERAGE
-        if trade_type == "Open Long":
-            PositionState.long_entry_price = price
-            open_position('LONG')
-        elif trade_type == "Open Short":
-            PositionState.short_entry_price = price
-            open_position('SHORT')
+        user_balance.current_capital -= size / BacktestConfig.LEVERAGE
+        user_balance.allocated_capital += size
     elif "Close" in trade_type:
-        PositionState.allocated_capital -= size
-        BacktestState.current_capital += (size / BacktestConfig.LEVERAGE) + profit_loss
-        if trade_type == "Close Long":
-            profit_loss = (price - PositionState.long_entry_price) * (size / PositionState.long_entry_price)
-            close_position('LONG')
-        elif trade_type == "Close Short":
-            profit_loss = (PositionState.short_entry_price - price) * (size / PositionState.short_entry_price)
-            close_position('SHORT')
-        BacktestState.cumulative_profit_loss += profit_loss
+        user_balance.current_capital += (size / BacktestConfig.LEVERAGE) + profit_loss
+        user_balance.allocated_capital = 0
+
         if profit_loss < 0.0:
-            BacktestState.unsuccessful_trades += 1
+            user_stats.unsuccessful_trades += 1
         else:
-            BacktestState.successful_trades += 1
+            user_stats.successful_trades += 1
+        user_stats.store(user_id)
+
+    user_balance.store(user_id)
+
+    user_stats.append_trade({
+        'timestamp': timestamp,
+        'trade_type': trade_type,
+        'price': price,
+        'size': size,
+        # 'margin': size / BacktestConfig.LEVERAGE,
+        'current_balance': round(user_balance.current_capital, 2),
+        'allocated_capital': round(user_balance.allocated_capital, 2),
+        'comment': comment,
+        'profit_loss': round(profit_loss, 2),
+        'cumulative_profit_loss': round(user_balance.cumulative_profit_loss, 2),
+        'commission': round(commission, 2),
+    })
+#
+
+        # log(f"{timestamp} {trade_type} ({comment}) {price}@{size}\n"
+        #     f"{round(BacktestState.current_capital, 2)}\n"
+        #     f"{round(BacktestState.cumulative_profit_loss)}\n")
+
+
+def log_trade(timestamp, trade_type, price, size, comment, user_data, user_id):
+    profit_loss = 0.0
+    user_position_state = user_data.position_state
+
+    if "Open" in trade_type:
+        if trade_type == "Open Long":
+            open_position('LONG', user_position_state)
+        elif trade_type == "Open Short":
+            open_position('SHORT', user_position_state)
+        user_position_state.open(trade_type, size, price)
+    elif "Close" in trade_type:
+        if trade_type == "Close Long":
+            close_position('LONG', user_position_state)
+        elif trade_type == "Close Short":
+            close_position('SHORT', user_position_state)
+        profit_loss = user_position_state.close_all(trade_type, price)
+
+    update_balance_and_stats(timestamp, trade_type, price, size, comment, profit_loss, user_data, user_id)
+
+    user_position_state.store(user_id)
+
+    formatted_timestamp = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+    # Определяем цвет/стиль для цены и размера
+    price_color = "🟩" if "Long" in trade_type else "🔴"  # Зеленый для покупки, красный для продажи
+    action = "🏁" if "Close" in trade_type else "🛒"
+
+    # Формируем красиво отформатированную строку
+    formatted_signal = (
+        f"⚡ *Trade* ⚡\n"
+        f"🕰️ *Timestamp:* {formatted_timestamp}\n"
+        f"🔑 *Action:* {action} {trade_type} {price_color}\n"
+        f"📦 *Price:* `{price:,.0f}$`\n"
+        f"📦 *Size:* `{size:,.0f}$`\n"
+        f"💬 *Comment:* {comment}\n"
+    )
+    #
+    log(f"{formatted_signal}", user_id)
+    #     f"{round(BacktestState.current_capital, 2)}\n"
+    #     f"{round(BacktestState.cumulative_profit_loss)}\n")
+
+        # BacktestState.cumulative_profit_loss += profit_loss
+        # if profit_loss < 0.0:
+        #     BacktestState.unsuccessful_trades += 1
+        # else:
+        #     BacktestState.successful_trades += 1
 
 
     #
@@ -57,32 +118,8 @@ def log_trade(timestamp, trade_type, price, size, comment):
     #     allocated_capital -= size
     #     unsuccessful_trades += 1
 
-    # if current_capital > INITIAL_CAPITAL:
-    #     farmed_money += current_capital - INITIAL_CAPITAL
-    #     current_capital = INITIAL_CAPITAL
-
-    # if current_capital < INITIAL_CAPITAL * 0.5:
-    #     farmed_money -= INITIAL_CAPITAL * 0.5
-    #     current_capital += INITIAL_CAPITAL * 0.5
-
-    # Добавляем комиссию в лог, но не меняем баланс
-    BacktestState.trade_log.append({
-        'timestamp': timestamp,
-        'trade_type': trade_type,
-        'price': price,
-        'size': size,
-        'margin': size / BacktestConfig.LEVERAGE,
-        'current_balance': round(BacktestState.current_capital, 2),
-        'allocated_capital': round(PositionState.allocated_capital, 2),
-        'comment': comment,
-        'profit_loss': round(profit_loss, 2),
-        'cumulative_profit_loss': round(BacktestState.cumulative_profit_loss, 2),
-        'commission': round(commission, 2),  # Добавляем комиссию
-    })
-    log(f"{timestamp} {trade_type} ({comment}) {price}@{size} | {round(BacktestState.current_capital, 2)} | {round(BacktestState.cumulative_profit_loss)}")
-
-    if BacktestConfig.enabled:
-        log(f"{timestamp}: {trade_type} at {price}, Size: {size:.5f}, "
-              f"Balance: {BacktestState.current_capital:.8f}, Allocated Capital: {PositionState.allocated_capital:.8f}, "
-              f"Profit/Loss: {profit_loss:.8f}, Cumulative P/L: {BacktestState.cumulative_profit_loss:.8f}, "
-              f"Commission: {commission:.8f}, Comment: {comment}")
+    # if BacktestConfig.enabled:
+    #     log(f"{timestamp}: {trade_type} at {price}, Size: {size:.5f}, "
+    #           f"Balance: {BacktestState.current_capital:.8f}, Allocated Capital: {PositionState.allocated_capital:.8f}, "
+    #           f"Profit/Loss: {profit_loss:.8f}, Cumulative P/L: {BacktestState.cumulative_profit_loss:.8f}, "
+    #           f"Commission: {commission:.8f}, Comment: {comment}")

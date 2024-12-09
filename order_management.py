@@ -1,10 +1,10 @@
 from binance.client import Client
 
-from config import BacktestConfig, StrategyConfig, UserConfig
+from config import BacktestConfig, StrategyConfig, ConnectionsConfig
 from logger_output import log
 from state import PositionState
 
-client = Client(UserConfig.TESTNET_API_KEY, UserConfig.TESTNET_API_SECRET, testnet=UserConfig.testnet_orders)
+client = Client(ConnectionsConfig.TESTNET_API_KEY, ConnectionsConfig.TESTNET_API_SECRET, testnet=ConnectionsConfig.testnet_orders)
 
 def get_price(symbol):
     # Получение текущей рыночной цены
@@ -12,7 +12,7 @@ def get_price(symbol):
     return float(ticker['price'])
 
 
-def open_position(position_side):
+def open_position(position_side, position_state):
     if not BacktestConfig.send_orders:
         return
     # Получаем текущую цену актива
@@ -21,7 +21,7 @@ def open_position(position_side):
     # Рассчитываем количество актива с учетом кредитного плеча
     quantity = (StrategyConfig.position_size * BacktestConfig.LEVERAGE) / price
     quantity = round(quantity, 3)  # Округляем до нужного количества знаков после запятой
-    PositionState.position_qty = quantity
+    position_state.position_qty = quantity
 
     # Открываем рыночный ордер на покупку (лонг)
     try:
@@ -43,7 +43,7 @@ def open_position(position_side):
     return None
 
 
-def close_position(position_side):
+def close_position(position_side, position_state):
     if not BacktestConfig.send_orders:
         return
     # Получаем текущую цену актива
@@ -56,7 +56,7 @@ def close_position(position_side):
             positionSide=position_side,
             side='SELL' if position_side == 'LONG' else 'BUY',  # Для закрытия шорта используйте 'BUY'
             type='LIMIT',
-            quantity=PositionState.position_qty,
+            quantity=position_state.position_qty,
             price=price,
             timeinforce='GTC'
         )

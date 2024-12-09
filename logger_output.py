@@ -6,9 +6,12 @@ from config import *
 # Инициализируем бота
 bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
 
-def send_telegram_message(message):
+def send_telegram_message(message, user_id=None):
     try:
-        bot.send_message(chat_id=UserConfig.CHAT_ID, text=message, parse_mode="Markdown")
+        if not user_id:
+            user_id = ConnectionsConfig.CHAT_ID
+
+        bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
     except Exception as e:
         print(f"Failed to send message: {e}")
 
@@ -19,8 +22,13 @@ logging.basicConfig(
     level=logging.INFO               # Уровень логирования (INFO, DEBUG, WARNING, ERROR, CRITICAL)
 )
 
-def log(msg):
+def log(msg, user=None):
     if not BacktestConfig.enabled and RealTimeConfig.notify:
-        send_telegram_message(msg)
-    logging.info(msg)
-    print(msg)
+        send_telegram_message(msg, user)
+
+    if not user:
+        logging.info(msg)
+        print(msg)
+    else:
+        logging.info(msg)
+        print(f"Log sent to user {user}")

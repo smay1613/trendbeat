@@ -7,8 +7,8 @@ from state import *
 from config import *
 # Настройки
 
-client = Client(UserConfig.TESTNET_API_KEY if BacktestConfig.testnet_md else UserConfig.API_KEY,
-                UserConfig.TESTNET_API_SECRET if BacktestConfig.testnet_md else UserConfig.API_SECRET,
+client = Client(ConnectionsConfig.TESTNET_API_KEY if BacktestConfig.testnet_md else ConnectionsConfig.API_KEY,
+                ConnectionsConfig.TESTNET_API_SECRET if BacktestConfig.testnet_md else ConnectionsConfig.API_SECRET,
                 testnet=BacktestConfig.testnet_md)
 
 def get_historical_data(symbol, interval, start_date, end_date):
@@ -58,15 +58,15 @@ if BacktestConfig.enabled:
     except Exception as e:
         log(f"Error occurred: {e}")
 
-pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
-pd.set_option('display.width', 1000)
-pd.set_option('display.float_format', '{:.2f}'.format)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.width', 1000)
+    pd.set_option('display.float_format', '{:.2f}'.format)
 
-trade_df = pd.DataFrame(BacktestState.trade_log)
-total_profit_loss = BacktestState.current_capital + PositionState.allocated_capital - BacktestConfig.INITIAL_CAPITAL
+    # trade_df = pd.DataFrame(BacktestState.trade_log)
+    # total_profit_loss = BacktestState.current_capital + PositionState.allocated_capital - BacktestConfig.INITIAL_CAPITAL
 
-if BacktestConfig.enabled:
-    log(trade_df)
-    log("Итоговые результаты:")
-    BacktestState.dump()
+    # if BacktestConfig.enabled:
+    #     log(trade_df)
+    #     log("Итоговые результаты:")
+    #     BacktestState.dump()
