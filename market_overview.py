@@ -143,13 +143,23 @@ def format_bands(formatted_data, previous_formatted_data):
 
 def format_ema(formatted_data, previous_formatted_data):
     # TODO: BROKEN EMAS
-    def broken_icon(is_broken):
-        return ' 💥' if is_broken else ''
 
     current_price = formatted_data['close']
-    emas = [('EMA  7 _(Active)_', formatted_data['EMA_7'], '🔺' if formatted_data['EMA_7'] > previous_formatted_data['EMA_7'] else '🔻'),
-            ('EMA 25 _(Short)_', formatted_data['EMA_25'], '🔺' if formatted_data['EMA_25'] > previous_formatted_data['EMA_7'] else '🔻'),
-            ('EMA 50 _(Base)_', formatted_data['EMA_99'], '🔺' if formatted_data['EMA_99'] > previous_formatted_data['EMA_7'] else '🔻')]
+
+    def broken_icon(ema_type):
+        previous_price = previous_formatted_data['close']
+        was_lower = previous_price < previous_formatted_data[ema_type]
+        was_bigger = previous_price > previous_formatted_data[ema_type]
+
+        is_broken = (was_lower and current_price > formatted_data[ema_type]) \
+                    or (was_bigger and current_price < formatted_data[ema_type])
+        # current price was lower than ema, now bigger than ema
+        # or current price was biger than ema, now less than ema
+        return ' 💥' if is_broken else ''
+
+    emas = [('EMA  7 _(Active)_', formatted_data['EMA_7'], '🔺' if formatted_data['EMA_7'] > previous_formatted_data['EMA_7'] else '🔻', broken_icon('EMA_7')),
+            ('EMA 25 _(Short)_', formatted_data['EMA_25'], '🔺' if formatted_data['EMA_25'] > previous_formatted_data['EMA_25'] else '🔻', broken_icon('EMA_25')),
+            ('EMA 50 _(Base)_', formatted_data['EMA_99'], '🔺' if formatted_data['EMA_99'] > previous_formatted_data['EMA_99'] else '🔻', broken_icon('EMA_99'))]
     sorted_emas = sorted(emas, key=lambda x: int(x[1]), reverse=True)
 
     def pin(upper_band, lower_band):
@@ -176,24 +186,24 @@ def format_ema(formatted_data, previous_formatted_data):
         if current_price > upper_band:
             graph += f"{pin(current_price, upper_band)}\n"
             for sorted_ema in sorted_emas:
-                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}` {sorted_ema[3]}\n'
         else:
             for sorted_ema in [sorted_emas[0]]:
-                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}` {sorted_ema[3]}\n'
             graph += f"{pin(upper_band, middle_band)}\n"
             for sorted_ema in sorted_emas[1:]:
-                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}` {sorted_ema[3]}\n'
     else:  # Цена ниже средней линии
         if current_price < lower_band:
             for sorted_ema in sorted_emas:
-                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}` {sorted_ema[3]}\n'
             graph += f"{pin(lower_band, current_price)}\n"
         else:
             for sorted_ema in sorted_emas[:2]:
-                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}` {sorted_ema[3]}\n'
             graph += f"{pin(upper_band, middle_band)}\n"
             for sorted_ema in [sorted_emas[2]]:
-                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}` {sorted_ema[3]}\n'
 
     return graph
 
@@ -272,7 +282,7 @@ def log_market_overview(row, previous_row):
         f"🔸 Mid term (_50{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Resistance_50'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_50')}\n"
         f"🔸 Long term (_99{BacktestConfig.interval_period}_):    `{format_price(formatted_data['Resistance_99'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_99')}\n"
         f"{section_separator}"
-        f"\n📊 *Bollinger Bands*\n"
+        f"\n📏 *Bollinger Bands*\n"
         + format_bands(formatted_data, previous_formatted_data)
     )
 
