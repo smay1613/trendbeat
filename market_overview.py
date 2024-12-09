@@ -141,6 +141,61 @@ def format_bands(formatted_data, previous_formatted_data):
             f"🔻 Low:  `{format_price(formatted_data['BB_LOWER'])}`{broken_icon(lower_broken)}\n"
         )
 
+def format_ema(formatted_data, previous_formatted_data):
+    # TODO: BROKEN EMAS
+    def broken_icon(is_broken):
+        return ' 💥' if is_broken else ''
+
+    current_price = formatted_data['close']
+    emas = [('EMA  7 _(Active)_', formatted_data['EMA_7'], '🔺' if formatted_data['EMA_7'] > previous_formatted_data['EMA_7'] else '🔻'),
+            ('EMA 25 _(Short)_', formatted_data['EMA_25'], '🔺' if formatted_data['EMA_25'] > previous_formatted_data['EMA_7'] else '🔻'),
+            ('EMA 50 _(Mid)_', formatted_data['EMA_99'], '🔺' if formatted_data['EMA_99'] > previous_formatted_data['EMA_7'] else '🔻')]
+    sorted_emas = sorted(emas, key=lambda x: int(x[1]), reverse=True)
+
+    def pin(upper_band, lower_band):
+        # Определение ближайшей границы
+        upper_diff = abs(current_price - upper_band)
+        lower_diff = abs(current_price - lower_band)
+
+        if upper_diff < lower_diff:
+            return f"📍 Price:         `{format_price(current_price)}` ↑"
+        else:
+            return f"📍 Price:         `{format_price(current_price)}` ↓"
+
+    # Проверка текущей цены относительно верхней и нижней границы
+    # upper_broken = current_price >= previous_formatted_data['BB_UPPER']
+    # lower_broken = current_price <= previous_formatted_data['BB_LOWER']
+    upper_band = sorted_emas[0][1]
+    middle_band = sorted_emas[1][1]
+    lower_band = sorted_emas[2][1]
+
+    graph = ""
+
+    # Формирование строки
+    if current_price > middle_band:  # Цена выше средней линии
+        if current_price > upper_band:
+            graph += f"{pin(current_price, upper_band)}\n"
+            for sorted_ema in sorted_emas:
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+        else:
+            for sorted_ema in [sorted_emas[0]]:
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+            graph += f"{pin(upper_band, middle_band)}\n"
+            for sorted_ema in sorted_emas[1:]:
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+    else:  # Цена ниже средней линии
+        if current_price < lower_band:
+            for sorted_ema in sorted_emas:
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+            graph += f"{pin(lower_band, current_price)}\n"
+        else:
+            for sorted_ema in sorted_emas[:2]:
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+            graph += f"{pin(upper_band, middle_band)}\n"
+            for sorted_ema in [sorted_emas[2]]:
+                graph += f'{sorted_ema[2]} {sorted_ema[0]}:   `{format_price(sorted_ema[1])}`\n'
+
+    return graph
 
 def btc_dominance_level_description(current_dominance):
     """
@@ -201,9 +256,10 @@ def log_market_overview(row, previous_row):
         f"{separator} Was:    {format_value_change(float(formatted_data['close']), float(previous_formatted_data['close']), format_as_price=True)}\n"
         f"{separator} Range:  `{format_price(formatted_data['low'])} - {format_price(formatted_data['high'])}`\n"
         f"\n📊 *EMA Indicators* \n"
-        f"{trend_icon_separator} EMA 7 (_Current_):  `{format_price(formatted_data['EMA_7'])}`\n"
-        f"{trend_icon_separator} EMS 25 (_Short_):   `{format_price(formatted_data['EMA_25'])}`\n"
-        f"{trend_icon_separator} EMA 50 (_Mid_):      `{format_price(formatted_data['EMA_99'])}`\n"
+        + format_ema(formatted_data, previous_formatted_data) +
+        # f"{trend_icon_separator} EMA 7 (_Current_):  `{format_price(formatted_data['EMA_7'])}`\n"
+        # f"{trend_icon_separator} EMS 25 (_Short_):   `{format_price(formatted_data['EMA_25'])}`\n"
+        # f"{trend_icon_separator} EMA 50 (_Mid_):      `{format_price(formatted_data['EMA_99'])}`\n"
         f"{section_separator}"
         f"\n📉 *Support Levels*\n"
         f"🔹 Immediate (_7{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Support_7'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_7')}\n"
