@@ -149,7 +149,7 @@ def format_ema(formatted_data, previous_formatted_data):
     current_price = formatted_data['close']
     emas = [('EMA  7 _(Active)_', formatted_data['EMA_7'], '🔺' if formatted_data['EMA_7'] > previous_formatted_data['EMA_7'] else '🔻'),
             ('EMA 25 _(Short)_', formatted_data['EMA_25'], '🔺' if formatted_data['EMA_25'] > previous_formatted_data['EMA_7'] else '🔻'),
-            ('EMA 50 _(Mid)_', formatted_data['EMA_99'], '🔺' if formatted_data['EMA_99'] > previous_formatted_data['EMA_7'] else '🔻')]
+            ('EMA 50 _(Base)_', formatted_data['EMA_99'], '🔺' if formatted_data['EMA_99'] > previous_formatted_data['EMA_7'] else '🔻')]
     sorted_emas = sorted(emas, key=lambda x: int(x[1]), reverse=True)
 
     def pin(upper_band, lower_band):
@@ -158,9 +158,9 @@ def format_ema(formatted_data, previous_formatted_data):
         lower_diff = abs(current_price - lower_band)
 
         if upper_diff < lower_diff:
-            return f"📍 Price:         `{format_price(current_price)}` ↑"
+            return f"📍 Price:                   `{format_price(current_price)}` ↑"
         else:
-            return f"📍 Price:         `{format_price(current_price)}` ↓"
+            return f"📍 Price:                   `{format_price(current_price)}` ↓"
 
     # Проверка текущей цены относительно верхней и нижней границы
     # upper_broken = current_price >= previous_formatted_data['BB_UPPER']
