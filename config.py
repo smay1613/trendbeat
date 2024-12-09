@@ -59,11 +59,11 @@ class BacktestConfig:
     LEVERAGE = 15
     INITIAL_CAPITAL = 1000.0
     symbol = 'BTCUSDT'
-    interval = '1h'
-    lookback_period = '7 days ago UTC'
-    start_date = '1 Jun 2024'
-    end_date = '13 Sep 2024'
     interval_period = 'h'
+    interval = f'1{interval_period}'
+    lookback_period = '7 days ago UTC'
+    start_date = '11 Dec 2024'
+    end_date = '12 Dec 2024' # TODO: CURRENT DATE!!!!!!!!!!!!
 
 class RealTimeConfig:
     notify = True
