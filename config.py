@@ -62,7 +62,6 @@ class BacktestConfig:
     interval_period = 'h'
     interval = f'1{interval_period}'
     lookback_period = '7 days ago UTC'
-    start_date = '11 Dec 2024'
     start_date = '1 Dec 2024'
     end_date = '12 Dec 2024' # TODO: CURRENT DATE!!!!!!!!!!!!
 
