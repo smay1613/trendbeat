@@ -67,7 +67,7 @@ class BacktestConfig:
 
 class RealTimeConfig:
     notify = True
-    first_minute_check = False
+    first_minute_check = True
 
 
 class ConnectionsConfig:
