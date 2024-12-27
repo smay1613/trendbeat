@@ -9,7 +9,7 @@ from config import *
 sync_bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
 
 
-def set_bot_commands_sync(self):
+def set_bot_commands_sync():
     commands = [
         BotCommand("start", "Initialize the bot"),
         BotCommand("help", "Display manual"),
