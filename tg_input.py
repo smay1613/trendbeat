@@ -5,7 +5,7 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKe
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler, CallbackQueryHandler
 
 from config import LogConfig
-from logger_output import log
+from logger_output import log, set_bot_commands_sync
 from formatting import format_price
 
 
@@ -627,19 +627,7 @@ class BotHandler:
             log("Error occured during overview: " + str(ex))
 
 
-    def set_bot_commands_sync(self):
-        commands = [
-            BotCommand("start", "Initialize the bot"),
-            BotCommand("help", "Display manual"),
-            # BotCommand("strategies", "Show your strategies"),
-            # BotCommand("overview", "Get last market overview"),
-            # BotCommand("market_overview_on", "Enable market trend analysis updates"),
-            # BotCommand("market_overview_off", "Disable market trend analysis updates"),
-            # BotCommand("alerts_on", "Turn on trading alerts"),
-            # BotCommand("alerts_off", "Turn off trading alerts"),
-        ]
-        global sync_bot
-        sync_bot.set_my_commands(commands)
+
 
 
 def run_bot_server(user_manager):
@@ -669,7 +657,7 @@ def run_bot_server(user_manager):
     application.add_handler(CallbackQueryHandler(bot_handler.strategy_settings_size, pattern="strategy_settings_position_"))
     application.add_handler(CallbackQueryHandler(bot_handler.dump_position_history, pattern="history"))
 
-    bot_handler.set_bot_commands_sync()
+    set_bot_commands_sync()
 
     # loop.close()
     application.run_polling()
