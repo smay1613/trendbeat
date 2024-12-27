@@ -13,12 +13,6 @@ def set_bot_commands_sync():
     commands = [
         BotCommand("start", "Initialize the bot"),
         BotCommand("help", "Display manual"),
-        # BotCommand("strategies", "Show your strategies"),
-        # BotCommand("overview", "Get last market overview"),
-        # BotCommand("market_overview_on", "Enable market trend analysis updates"),
-        # BotCommand("market_overview_off", "Disable market trend analysis updates"),
-        # BotCommand("alerts_on", "Turn on trading alerts"),
-        # BotCommand("alerts_off", "Turn off trading alerts"),
     ]
     global sync_bot
     sync_bot.set_my_commands(commands)
