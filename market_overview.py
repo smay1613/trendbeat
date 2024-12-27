@@ -1,6 +1,11 @@
-from config import StrategyConfig, BacktestConfig
+import datetime
+
+import pytz
+
+from config import BacktestConfig
 from indicators import get_btc_dominance, get_fear_and_greed_index
 from logger_output import log
+from formatting import format_price
 from trade_logic import determine_trend
 
 
@@ -60,14 +65,23 @@ def fear_and_greed_icon(greed_value):
     else:
         return "❓"
 
-def get_price(symbol):
-    # Получение текущей рыночной цены
-    ticker = client.futures_symbol_ticker(symbol=symbol)
-    return float(ticker['price'])
+def characterize_adx(adx_value):
+    if adx_value < 15:
+        return "No Trend"
+    elif 15 <= adx_value < 25:
+        return "Noticeable"
+    elif 25 <= adx_value < 40:
+        return "Strong"
+    elif 40 <= adx_value < 60:
+        return "Very Strong"
+    else:
+        return "Overheated"
 
+# def get_price(symbol):
+#     Получение текущей рыночной цены
+    # ticker = client.futures_symbol_ticker(symbol=symbol)
+    # return float(ticker['price'])
 
-def format_price(price, diff=False):
-    return f'{int(price):,}$' if not diff else f'{"+" if price >= 0 else ""}{int(price):,}$'
 
 def support_check_message(formatted_data, previous_formatted_data, support_level):
     if formatted_data[support_level] >= previous_formatted_data[support_level]:
@@ -81,22 +95,24 @@ def resistance_check_message(formatted_data, previous_formatted_data, resist_lev
 
 def format_btc_dominance(current_dominance, previous_dominance):
     change = current_dominance - previous_dominance
-    trend_icon = "📈" if change > 0 else "📉"
-    return f"`{previous_dominance}%` _({change:+.1f}%)_ {trend_icon}"
+    # trend_icon = "📈" if change > 0 else "📉"
+    trend_icon = '↑' if change >= 0 else '↓'
+    return f"_({change:+.1f}%)_ {trend_icon}"
 
-def format_value_change(current_value, previous_value, format_as_price=False):
+def format_value_change(current_value, previous_value, format_as_price=False, print_previous_value=False):
     change = round(current_value - previous_value, 1)
 
-    trend_icon = "📈" if change > 0 else "📉" if change < 0 else "➖"
+    # trend_icon = "📈" if change > 0 else "📉" if change < 0 else "➖"
+    trend_icon = '↑' if change >= 0 else '↓'
     if format_as_price:
-        change = f'({format_price(change, diff=True)})'
+        change = f'{format_price(change, diff=True)}'
     else:
         def format_number(value):
             return f"{value:+.1f}".rstrip('0').rstrip('.')
 
-        change = f'({format_number(change)})'
+        change = f'{format_number(change)}'
 
-    return f"`{previous_value if not format_as_price else format_price(previous_value)}` _{change}_ {trend_icon}"
+    return f"`{(f'{previous_value} ' if not format_as_price else format_price(previous_value)) if print_previous_value else ''}`_{change}_ {trend_icon}"
 
 def format_bands(formatted_data, previous_formatted_data):
     def broken_icon(is_broken):
@@ -215,82 +231,187 @@ def btc_dominance_level_description(current_dominance):
     :return: Строка с текстовым описанием текущего уровня BTC Dominance.
     """
     if current_dominance >= 70:
-        return f"_(high)_ 🟢"
+        return f"_high_ | 🟢"
     elif 60 <= current_dominance < 70:
-        return f"_(moderate)_ 🟡"
+        return f"_moderate_ | 🟡"
     elif 50 <= current_dominance < 60:
-        return f"_(neutral)_ 🟠"
+        return f"_neutral_ | 🟠"
     elif 40 <= current_dominance < 50:
-        return f"_(low)_ 🔴"
+        return f"_low_ | 🔴"
     else:
-        return f"_(very low)_ 🔴"
+        return f"_very low_ | 🔴"
 
+def get_trading_session():
+    # Задаем временные зоны для каждой сессии
+    timezone_utc = pytz.timezone('UTC')
 
-def log_market_overview(row, previous_row):
-    trend, trend_type = determine_trend(row)
-    formatted_data = {key: value for key, value in list(row.to_dict().items())}
-    previous_formatted_data = {key: value for key, value in list(previous_row.to_dict().items())}
+    # Время начала и окончания торговых сессий в UTC
+    sessions = {
+        'american': {'start': 14, 'end': 22},  # с 14:00 до 22:00 UTC
+        'european': {'start': 7, 'end': 15},   # с 7:00 до 15:00 UTC
+        'asian': {'start': 0, 'end': 8},       # с 0:00 до 8:00 UTC
+    }
 
-    dominance_now, dominance_yesterday = get_btc_dominance()
-    trend_icon_separator = '🔺' if trend == 'LONG' else '🔻'
-    fear_and_greed_value, fear_and_greed_text, fear_and_greed_value_yesterday, fear_and_greed_text_yesterday = get_fear_and_greed_index()
+    # Получаем текущее время по UTC
+    now_utc = datetime.datetime.now(timezone_utc)
 
-    separator = '▫️'
-    section_separator = "---\n"
+    # Определяем сессию
+    if sessions['american']['start'] <= now_utc.hour < sessions['american']['end']:
+        return 'American'
+    elif sessions['european']['start'] <= now_utc.hour < sessions['european']['end']:
+        return 'European'
+    elif sessions['asian']['start'] <= now_utc.hour < sessions['asian']['end']:
+        return 'Asian'
+    else:
+        return 'Outside Trading Hours'
 
-    return (
-        f"*{BacktestConfig.symbol} Market Overview*\n"
-        f"\n📌 *Market Trend*\n"
-        f"{separator} Direction: `{trend}` | `{trend_type}` {trend_icon(trend, trend_type)}\n"
-        f"{separator} Strength (ADX): `{formatted_data['ADX']:.0f}` (_min_ `{StrategyConfig.min_adx}`) {decision_icon(formatted_data['ADX'] > StrategyConfig.min_adx)}\n"
-        f"{section_separator}"
-        "\n⚖️ *BTC Dominance*\n"
-        f"{separator} Now:  `{dominance_now:.1f}%` {btc_dominance_level_description(dominance_now)}\n"
-        f"{separator} Was:  {format_btc_dominance(dominance_now, dominance_yesterday)}\n"
-        # f"{separator} Yesterday: {dominance_yesterday}%\n"
-        f"\n{fear_and_greed_icon(fear_and_greed_value)} *Fear & Greed*\n"
-        f"{separator} Now:  `{fear_and_greed_value}` _({fear_and_greed_text.lower()})_ {fear_and_greed_status_icon(fear_and_greed_value)}\n"
-        f"{separator} Was:  {format_value_change(fear_and_greed_value, fear_and_greed_value_yesterday)}\n"
-        # f"{separator} Yesterday: {fear_and_greed_value_yesterday} (_{fear_and_greed_text_yesterday}_)\n"
-        f"{section_separator}"
-        f"\n📊 *Volume*\n"
-        f"{separator} Now:  `{formatted_data['volume']:.0f}` _(avg:_ `{formatted_data['Average_Volume']:.0f}`_)_ {decision_icon(formatted_data['volume'] > formatted_data['Average_Volume'])}\n"
-        f"{separator} Was:  {format_value_change(int(float(formatted_data['volume'])), int(float(previous_formatted_data['volume'])))}\n"
-        # f"{separator} Average:  `{formatted_data['Average_Volume']:.0f}`\n"
-        f"\n{rsi_condition_icon(formatted_data['RSI_6'])} *RSI* (_6{BacktestConfig.interval_period}_)\n"
-        f"{separator} Now: `{formatted_data['RSI_6']:.1f}` (_{rsi_conditions(formatted_data['RSI_6'])}_) {decision_icon(rsi_conditions(formatted_data['RSI_6']) == 'neutral')}\n"
-        f"{separator} Was:  {format_value_change(round(float(formatted_data['RSI_6']), 1), round(float(previous_formatted_data['RSI_6']), 1))}\n"
-        f"{section_separator}"
-        f"\n💰 *Price*\n"
-        f"{separator} Now:   `{format_price(formatted_data['close'])}`\n"
-        f"{separator} Was:    {format_value_change(float(formatted_data['close']), float(previous_formatted_data['close']), format_as_price=True)}\n"
-        f"{separator} Range:  `{format_price(formatted_data['low'])} - {format_price(formatted_data['high'])}`\n"
-        f"\n📊 *EMA Indicators* \n"
-        + format_ema(formatted_data, previous_formatted_data) +
-        # f"{trend_icon_separator} EMA 7 (_Current_):  `{format_price(formatted_data['EMA_7'])}`\n"
-        # f"{trend_icon_separator} EMS 25 (_Short_):   `{format_price(formatted_data['EMA_25'])}`\n"
-        # f"{trend_icon_separator} EMA 50 (_Mid_):      `{format_price(formatted_data['EMA_99'])}`\n"
-        f"{section_separator}"
-        f"\n📉 *Support Levels*\n"
-        f"🔹 Immediate (_7{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Support_7'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_7')}\n"
-        f"🔹 Short term (_25{BacktestConfig.interval_period}_):   `{format_price(formatted_data['Support_25'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_25')}\n"
-        f"🔹 Mid term (_50{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Support_50'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_50')}\n"
-        f"🔹 Long term (_99{BacktestConfig.interval_period}_):    `{format_price(formatted_data['Support_99'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_99')}\n"
-        f"\n📈 *Resistance Levels*\n"
-        f"🔸 Immediate (_7{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Resistance_7'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_7')}\n"
-        f"🔸 Short term (_25{BacktestConfig.interval_period}_):   `{format_price(formatted_data['Resistance_25'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_25')}\n"
-        f"🔸 Mid term (_50{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Resistance_50'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_50')}\n"
-        f"🔸 Long term (_99{BacktestConfig.interval_period}_):    `{format_price(formatted_data['Resistance_99'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_99')}\n"
-        f"{section_separator}"
-        f"\n📏 *Bollinger Bands*\n"
-        + format_bands(formatted_data, previous_formatted_data)
-    )
+class OverviewPrinter:
+    def __init__(self):
+        self.last_market_overview = {}
 
-def broadcast_market_overview(row, previous_row, users):
-    market_overview_text = log_market_overview(row, previous_row)
+    def get_market_overview(self, row, previous_row):
+        trend, trend_type = determine_trend(row)
+        formatted_data = {key: value for key, value in list(row.to_dict().items())}
+        previous_formatted_data = {key: value for key, value in list(previous_row.to_dict().items())}
 
-    for user_id, user_data in users.items():
-        if not user_data.user_settings.market_overview_enabled:
-            continue
+        dominance_now, dominance_yesterday = get_btc_dominance()
+        # trend_icon_separator = '🔺' if trend == 'LONG' else '🔻'
+        fear_and_greed_value, fear_and_greed_text, fear_and_greed_value_yesterday, fear_and_greed_text_yesterday = get_fear_and_greed_index()
 
-        log(market_overview_text, user_id)
+        separator = '▫️'
+        # section_separator = "---\n"
+
+        overview = {}
+
+        overview['Session'] = get_trading_session()
+
+        overview['Price'] = (
+            f"\n💰 *Price*\n"
+            f"{separator} Now:   `{format_price(formatted_data['close'])}` | "
+            f"{format_value_change(float(formatted_data['close']), float(previous_formatted_data['close']), format_as_price=True)}\n"
+            f"{separator} Range:  `{format_price(formatted_data['low'])} - {format_price(formatted_data['high'])}`\n"
+        )
+
+        overview['Volume'] = (
+            f"\n📊 *Volume*\n"
+            f"{separator} `{formatted_data['volume']:.0f}` | {format_value_change(int(float(formatted_data['volume'])), int(float(previous_formatted_data['volume'])), print_previous_value=False)} | "
+            f"_avg:_ `{formatted_data['Average_Volume']:.0f}` | {decision_icon(formatted_data['volume'] > formatted_data['Average_Volume'])}\n"
+        )
+
+        overview['RSI'] = (
+            f"\n{rsi_condition_icon(formatted_data['RSI_6'])} *RSI* (_6{BacktestConfig.interval_period}_)\n"
+            f"{separator} `{formatted_data['RSI_6']:.1f}` | {format_value_change(round(float(formatted_data['RSI_6']), 1), round(float(previous_formatted_data['RSI_6']), 1))} | "
+            f"_{rsi_conditions(formatted_data['RSI_6'])}_ | {decision_icon(rsi_conditions(formatted_data['RSI_6']) == 'neutral')}\n"
+        )
+
+        overview['Trend'] = (
+            f"\n📌 *Market Trend*\n"
+            f"{separator} Direction: `{trend.capitalize()}` | `{trend_type.capitalize()}` | {trend_icon(trend, trend_type)}\n"
+            f"{separator} Strength (ADX): `{formatted_data['ADX']:.0f}` | _{characterize_adx(formatted_data['ADX'])}_ | {decision_icon(formatted_data['ADX'] > 15)}\n"
+        )
+
+        overview['EMA'] = (
+            f"\n📊 *EMA Indicators* \n"
+            + format_ema(formatted_data, previous_formatted_data)
+        )
+
+        overview['Bollinger'] = (
+            f"\n📏 *Bollinger Bands*\n"
+            + format_bands(formatted_data, previous_formatted_data)
+        )
+
+        overview['Support'] = (
+            f"\n📉 *Support Levels*\n"
+            f"🔹 Immediate (_7{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Support_7'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_7')}\n"
+            f"🔹 Short term (_25{BacktestConfig.interval_period}_):   `{format_price(formatted_data['Support_25'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_25')}\n"
+            f"🔹 Mid term (_50{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Support_50'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_50')}\n"
+            f"🔹 Long term (_99{BacktestConfig.interval_period}_):    `{format_price(formatted_data['Support_99'])}` {support_check_message(formatted_data, previous_formatted_data, 'Support_99')}\n"
+        )
+
+        overview['Resistance'] = (
+            f"\n📈 *Resistance Levels*\n"
+            f"🔸 Immediate (_7{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Resistance_7'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_7')}\n"
+            f"🔸 Short term (_25{BacktestConfig.interval_period}_):   `{format_price(formatted_data['Resistance_25'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_25')}\n"
+            f"🔸 Mid term (_50{BacktestConfig.interval_period}_):     `{format_price(formatted_data['Resistance_50'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_50')}\n"
+            f"🔸 Long term (_99{BacktestConfig.interval_period}_):    `{format_price(formatted_data['Resistance_99'])}` {resistance_check_message(formatted_data, previous_formatted_data, 'Resistance_99')}\n"
+        )
+
+        overview['Dominance'] = (
+            "\n⚖️ *BTC Dominance*\n"
+            f"{separator} `{dominance_now:.1f}%` | {format_btc_dominance(dominance_now, dominance_yesterday)} | {btc_dominance_level_description(dominance_now)}\n"
+        )
+
+        overview['FearAndGreed'] = (
+            f"\n{fear_and_greed_icon(fear_and_greed_value)} *Fear & Greed*\n"
+            f"{separator} `{fear_and_greed_value}` | {format_value_change(fear_and_greed_value, fear_and_greed_value_yesterday)} | _{fear_and_greed_text.lower()}_ | {fear_and_greed_status_icon(fear_and_greed_value)}\n"
+        )
+
+        self.last_market_overview = overview
+
+        return overview
+
+    def get_last(self, settings=None, display_settings=None):
+        return self.overview_to_text(self.last_market_overview, settings, display_settings)
+
+    def overview_to_text(self, overview, settings=None, display_settings=None):
+        if len(overview) == 0:
+            return "💤 Overview is not collected yet"
+        all_enabled = not display_settings
+        price_enabled = not settings or settings['price']
+        trend_enabled = not settings or settings['trend']
+        support_resistance_enabled = not settings or settings['support_resistance']
+        sentiment_enabled = not settings or settings['sentiment']
+
+        has_price_section = all_enabled or display_settings['price'] or display_settings['volume'] or display_settings['rsi']
+        has_trend_section = all_enabled or display_settings['trend'] or display_settings['ema'] or display_settings['bands']
+        has_key_levels_section = all_enabled or display_settings['support'] or display_settings['resistance']
+        has_sentiment_section = all_enabled or display_settings['dominance'] or display_settings['sentiment']
+
+        section_separator = "──────────\n"
+
+        return (
+            f"🌎 *{BacktestConfig.symbol} Market Overview* | {BacktestConfig.interval} {('| _' + overview['Session'] + '_') if all_enabled or display_settings['session'] else ''}\n"
+            f"{section_separator}" +
+            (
+                (
+                    (overview['Price'] if all_enabled or display_settings['price'] else '') +
+                    (overview['Volume'] if all_enabled or display_settings['volume'] else '') +
+                    (overview['RSI'] if all_enabled or display_settings['rsi'] else '') +
+                 f"{section_separator if has_price_section else ''}"
+                ) if price_enabled else ''
+             ) +
+            (
+                (
+                    (overview['Trend'] if all_enabled or display_settings['trend'] else '') +
+                    (overview['EMA'] if all_enabled or display_settings['ema'] else '') +
+                    (overview['Bollinger'] if all_enabled or display_settings['bands'] else '') +
+                    f"{section_separator if has_trend_section else ''}"
+                ) if trend_enabled else ''
+            ) +
+            (
+                (
+                    (overview['Support'] if all_enabled or display_settings['support'] else '') +
+                    (overview['Resistance'] if all_enabled or display_settings['resistance'] else '') +
+                    f"{section_separator if has_key_levels_section else ''}"
+                ) if support_resistance_enabled else ''
+            ) +
+            (
+                (
+                    (overview['Dominance'] if all_enabled or display_settings['dominance'] else '') +
+                    (overview['FearAndGreed'] if all_enabled or display_settings['sentiment'] else '') +
+                    f"{section_separator if has_sentiment_section else ''}"
+                ) if sentiment_enabled else ''
+            )
+        )
+
+    def broadcast_market_overview(self, row, previous_row, users):
+        update = self.get_market_overview(row, previous_row)
+        market_overview_text = self.overview_to_text(update)
+
+        for user_id, user_data in users.items():
+            if not user_data.user_settings.market_overview_enabled:
+                continue
+
+            log(market_overview_text, user_id)
+
+overview_printer = OverviewPrinter()

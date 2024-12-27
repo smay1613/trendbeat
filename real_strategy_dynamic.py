@@ -9,47 +9,76 @@ from config import BacktestConfig, RealTimeConfig, ConnectionsConfig
 from fake_server import run_web_server
 from indicators import calculate_indicators
 from logger_output import log
-from database_helper import DatabaseHelper
-from market_overview import broadcast_market_overview
-from tg_input import UserManager, run_bot_server
+from state import UserManager
+from tg_input import run_bot_server
 from trade_logic import trade_logic
 
 client = Client(ConnectionsConfig.TESTNET_API_KEY if BacktestConfig.testnet_md else ConnectionsConfig.API_KEY,
                 ConnectionsConfig.TESTNET_API_SECRET if BacktestConfig.testnet_md else ConnectionsConfig.API_SECRET,
                 testnet=BacktestConfig.testnet_md)
 
-def get_historical_data(symbol, interval, start_date, end_date):
-    klines = client.futures_historical_klines(symbol, interval, start_date, end_date)
-    df = pd.DataFrame(klines, columns=[
-        'timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time',
-        'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
-        'taker_buy_quote_asset_volume', 'ignore'])
+class HistoricalDataLoader:
+    def __init__(self):
+        self.historical_data = self.get_historical_data(BacktestConfig.symbol, BacktestConfig.interval,
+                                                        BacktestConfig.lookback_period,
+                                                        "now")
+        self.historical_data = calculate_indicators(self.historical_data)
+        log(f"History loaded / {BacktestConfig.interval} ({BacktestConfig.lookback_period})")
 
-    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-    df.set_index('timestamp', inplace=True)
-    df['close'] = df['close'].astype(float)
-    df['high'] = df['high'].astype(float)
-    df['low'] = df['low'].astype(float)
-    df['open'] = df['open'].astype(float)
+    def format_data(self, df):
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        df['close'] = df['close'].astype(float)
+        df['high'] = df['high'].astype(float)
+        df['low'] = df['low'].astype(float)
+        df['open'] = df['open'].astype(float)
+        df['volume'] = df['volume'].astype(float)
 
-    return df[['close', 'high', 'low', 'open', 'volume']]
+        return df
+
+    def get_historical_data(self, symbol, interval, start_date, end_date):
+        klines = client.futures_historical_klines(symbol, interval, start_date, end_date)
+        df = pd.DataFrame(klines, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time',
+            'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
+            'taker_buy_quote_asset_volume', 'ignore'])
+
+        df = self.format_data(df)
+
+        return df[['close', 'high', 'low', 'open', 'volume']]
+
+    def get_last(self):
+        # Получить последнюю свечу с сервера
+        new_kline = client.futures_klines(symbol=BacktestConfig.symbol, interval=BacktestConfig.interval, limit=2)
+        new_kline = [new_kline[0]]
+        new_data = pd.DataFrame(new_kline, columns=[
+            'timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time',
+            'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
+            'taker_buy_quote_asset_volume', 'ignore'
+        ])
+
+        new_data = self.format_data(new_data)
+
+        return new_data
+
+    def get_update(self):
+        new_data = self.get_last()
+        if new_data.index[-1] > self.historical_data.index[-1]:
+            previous_row = self.historical_data.iloc[-1]
+            self.historical_data = pd.concat([self.historical_data, new_data])
+            self.historical_data = calculate_indicators(self.historical_data)
+            row = self.historical_data.iloc[-1]
+            timestamp = new_data.index[-1]
+            return row, previous_row, timestamp
+
+        return None
+
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
-# Загрузить начальные исторические данные
-historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.lookback_period,
-                                      "now")
-historical_data = calculate_indicators(historical_data)
-log(f"History loaded ({BacktestConfig.lookback_period})")
-
-# DatabaseHelper.initialize("bot_database.sqlite")
-
-DatabaseHelper.initialize(ConnectionsConfig.SUPABASE_URL, ConnectionsConfig.SUPABASE_KEY)
-
 user_manager = UserManager()
-# threading.Thread(target=run_bot_server, args=(user_manager,), daemon=True).start()
+history_data_loader = HistoricalDataLoader()
 
-# Бесконечный цикл для подгрузки новых данных и выполнения расчета
 def main_loop():
     while True:
         try:
@@ -61,39 +90,17 @@ def main_loop():
                 time.sleep(60)
                 continue
 
-            # Получить последнюю свечу с сервера
-            new_kline = client.futures_klines(symbol=BacktestConfig.symbol, interval=BacktestConfig.interval, limit=2)
-            new_kline = [new_kline[0]]
-            new_data = pd.DataFrame(new_kline, columns=[
-                'timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time',
-                'quote_asset_volume', 'number_of_trades', 'taker_buy_base_asset_volume',
-                'taker_buy_quote_asset_volume', 'ignore'
-            ])
-
-            new_data['timestamp'] = pd.to_datetime(new_data['timestamp'], unit='ms')
-            new_data.set_index('timestamp', inplace=True)
-            new_data['close'] = new_data['close'].astype(float)
-            new_data['high'] = new_data['high'].astype(float)
-            new_data['low'] = new_data['low'].astype(float)
-            new_data['open'] = new_data['open'].astype(float)
-            new_data['volume'] = new_data['volume'].astype(float)
-            global historical_data
-            if new_data.index[-1] > historical_data.index[-1]:
-                previous_row = historical_data.iloc[-1]
-
-                # Добавить новую свечу к историческим данным
-                historical_data = pd.concat([historical_data, new_data])
-                historical_data = calculate_indicators(historical_data)  # Пересчитать индикаторы
-
-                # Выполнить торговые решения
-                row = historical_data.iloc[-1]
-
-                broadcast_market_overview(row, previous_row, user_manager.users)
+            update = history_data_loader.get_update()
+            if update:
+                row, previous_row, timestamp = update
+                global overview_printer
+                overview_printer.broadcast_market_overview(row, previous_row, user_manager.users)
 
                 latest_price = row['close']
 
-                for user_id, user_data in list(user_manager.users.items()):
-                    trade_logic(row, timestamp=new_data.index[-1], latest_price=latest_price, user=user_data, user_id=user_id)
+                for user_data in list(user_manager.users.values()):
+                    for strategy in user_data.strategies.strategies.values():
+                        trade_logic(row, strategy=strategy, timestamp=timestamp, latest_price=latest_price, user=user_data)
 
             if not RealTimeConfig.first_minute_check:
                 time.sleep(60)

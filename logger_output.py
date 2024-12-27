@@ -4,14 +4,14 @@ from telebot import TeleBot
 from config import *
 
 # Инициализируем бота
-bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
+sync_bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
 
 def send_telegram_message(message, user_id=None):
     try:
         if not user_id:
             user_id = ConnectionsConfig.CHAT_ID
 
-        bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+        sync_bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
     except Exception as e:
         print(f"Failed to send message: {e}")
 

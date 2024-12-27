@@ -1,125 +1,100 @@
 import datetime
 
+from logger_output import log
 from order_management import open_position, close_position
-from state import *
+from formatting import format_number, format_price
 
-MAKER_FEE = 0.0002  # 0.02% для мейкеров
-TAKER_FEE = 0.0004  # 0.04% для тейкеров
 
 def calculate_commission(size, is_taker=True):
-    """Рассчитываем комиссию за сделку."""
+    MAKER_FEE = 0.0002  # 0.02%
+    TAKER_FEE = 0.0004  # 0.04%
+
     fee_rate = TAKER_FEE if is_taker else MAKER_FEE
     commission = size * fee_rate
     return commission
 
-def update_balance_and_stats(timestamp, trade_type, price, size, comment, profit_loss, user_data, user_id):
+def update_balance_and_stats(timestamp, trade_type, price, size, comment, profit_loss, leverage, strategy):
     commission = calculate_commission(size)
 
-    user_balance = user_data.balance
-    user_balance.total_commission += commission
-    user_balance.cumulative_profit_loss += profit_loss
-
-    user_stats = user_data.stats
+    strategy_stats = strategy.stats
+    strategy_stats.total_commission += commission
+    strategy_stats.cumulative_profit_loss += profit_loss
 
     if "Open" in trade_type:
-        user_balance.current_capital -= size / BacktestConfig.LEVERAGE
-        user_balance.allocated_capital += size
+        strategy_stats.current_capital -= size
+        strategy_stats.allocated_capital += size
     elif "Close" in trade_type:
-        user_balance.current_capital += (size / BacktestConfig.LEVERAGE) + profit_loss
-        user_balance.allocated_capital = 0
+        strategy_stats.current_capital += size + profit_loss
+        strategy_stats.allocated_capital = 0
 
         if profit_loss < 0.0:
-            user_stats.unsuccessful_trades += 1
+            strategy_stats.unsuccessful_trades += 1
         else:
-            user_stats.successful_trades += 1
-        user_stats.store(user_id)
+            strategy_stats.successful_trades += 1
 
-    user_balance.store(user_id)
-
-    user_stats.append_trade({
+    strategy_stats.append_trade(strategy.user_id, strategy.strategy_id, {
         'timestamp': timestamp,
         'trade_type': trade_type,
         'price': price,
         'size': size,
-        # 'margin': size / BacktestConfig.LEVERAGE,
-        'current_balance': round(user_balance.current_capital, 2),
-        'allocated_capital': round(user_balance.allocated_capital, 2),
+        'leverage': leverage,
+        'full_size': size * leverage,
+        'current_balance': round(strategy_stats.current_capital, 2),
+        'allocated_capital': round(strategy_stats.allocated_capital, 2),
         'comment': comment,
         'profit_loss': round(profit_loss, 2),
-        'cumulative_profit_loss': round(user_balance.cumulative_profit_loss, 2),
+        'cumulative_profit_loss': round(strategy_stats.cumulative_profit_loss, 2),
         'commission': round(commission, 2),
     })
-#
-
-        # log(f"{timestamp} {trade_type} ({comment}) {price}@{size}\n"
-        #     f"{round(BacktestState.current_capital, 2)}\n"
-        #     f"{round(BacktestState.cumulative_profit_loss)}\n")
 
 
-def log_trade(timestamp, trade_type, price, size, comment, user_data, user_id):
+def log_trade(timestamp, trade_type, price, size, comment, strategy, user):
     profit_loss = 0.0
-    user_position_state = user_data.position_state
+    position_state = strategy.position_state
+
+    leverage = strategy.strategy_config.leverage
+    full_position_size = size * leverage
 
     if "Open" in trade_type:
         if trade_type == "Open Long":
-            open_position('LONG', user_position_state)
+            open_position('LONG', position_state, size, leverage)
         elif trade_type == "Open Short":
-            open_position('SHORT', user_position_state)
-        user_position_state.open(trade_type, size, price)
+            open_position('SHORT', position_state, size, leverage)
+        position_state.open(trade_type, size, price, leverage)
     elif "Close" in trade_type:
         if trade_type == "Close Long":
-            close_position('LONG', user_position_state)
+            close_position('LONG', position_state, size)
         elif trade_type == "Close Short":
-            close_position('SHORT', user_position_state)
-        profit_loss = user_position_state.close_all(trade_type, price)
+            close_position('SHORT', position_state, size)
+        profit_loss, entry_price = position_state.close_all(trade_type, price)
 
-    update_balance_and_stats(timestamp, trade_type, price, size, comment, profit_loss, user_data, user_id)
+    formatted_timestamp = timestamp.strftime('%d.%m.%Y %H:%M')
+    update_balance_and_stats(formatted_timestamp, trade_type, price, size, comment, profit_loss, leverage, strategy)
 
-    user_position_state.store(user_id)
+    strategy.store_state()
 
-    formatted_timestamp = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-    # Определяем цвет/стиль для цены и размера
-    price_color = "🟩" if "Long" in trade_type else "🔴"  # Зеленый для покупки, красный для продажи
+    # price_color = "🍏" if "Long" in trade_type else "🍎"
     action = "🏁" if "Close" in trade_type else "🛒"
 
-    # Формируем красиво отформатированную строку
+    pnl_symbol = '🔺' if profit_loss >= 0 else '🔻'
+    pnl_icon = '🚀' if profit_loss >= 0 else '🥀'
+    is_trade_close = "Close" in trade_type
+
+    price_or_price_change = f"`{price:,.0f}$`    " if not is_trade_close else f"`{format_price(entry_price)} → {price:,.0f}$`"
+
+    def fix_timestamp(timestamp):
+        dt = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M")
+        # Формируем строку без года
+        formatted_timestamp = dt.strftime("%d.%m %H:%M")
+        return formatted_timestamp
+
     formatted_signal = (
-        f"⚡ *Trade* ⚡\n"
-        f"🕰️ *Timestamp:* {formatted_timestamp}\n"
-        f"🔑 *Action:* {action} {trade_type} {price_color}\n"
-        f"📦 *Price:* `{price:,.0f}$`\n"
-        f"📦 *Size:* `{size:,.0f}$`\n"
-        f"💬 *Comment:* {comment}\n"
+        f"🎰 *{strategy.strategy_config.name} trade* ⚡\n"
+        f"{action} {trade_type} | 🕓 {fix_timestamp(formatted_timestamp)}\n"
+        # f"\n"
+        f"💰 {price_or_price_change} | 📦 `{full_position_size:,.0f}$` (`{leverage}x`)\n"
+        + (f"{pnl_icon} `{format_number(profit_loss)}` {pnl_symbol} | " if is_trade_close else '') +
+        f"💬 {comment}\n"
     )
-    #
-    log(f"{formatted_signal}", user_id)
-    #     f"{round(BacktestState.current_capital, 2)}\n"
-    #     f"{round(BacktestState.cumulative_profit_loss)}\n")
 
-        # BacktestState.cumulative_profit_loss += profit_loss
-        # if profit_loss < 0.0:
-        #     BacktestState.unsuccessful_trades += 1
-        # else:
-        #     BacktestState.successful_trades += 1
-
-
-    #
-    # elif trade_type == "Stop Loss Long":
-    #     profit_loss = (price - long_entry_price) * (size / long_entry_price)
-    #     current_capital += size / LEVERAGE + profit_loss
-    #     cumulative_profit_loss += profit_loss
-    #     allocated_capital -= size
-    #     unsuccessful_trades += 1
-    #
-    # elif trade_type == "Stop Loss Short":
-    #     profit_loss = (short_entry_price - price) * (size / short_entry_price)
-    #     current_capital += size / LEVERAGE + profit_loss
-    #     cumulative_profit_loss += profit_loss
-    #     allocated_capital -= size
-    #     unsuccessful_trades += 1
-
-    # if BacktestConfig.enabled:
-    #     log(f"{timestamp}: {trade_type} at {price}, Size: {size:.5f}, "
-    #           f"Balance: {BacktestState.current_capital:.8f}, Allocated Capital: {PositionState.allocated_capital:.8f}, "
-    #           f"Profit/Loss: {profit_loss:.8f}, Cumulative P/L: {BacktestState.cumulative_profit_loss:.8f}, "
-    #           f"Commission: {commission:.8f}, Comment: {comment}")
+    log(f"{formatted_signal}", user.user_id)

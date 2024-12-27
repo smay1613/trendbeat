@@ -27,7 +27,7 @@ class CustomParser:
         return {"n": n, "e": length}
 
 
-class CoinGlassApi:
+# class CoinGlassApi:
 def decrypt_coinglass(data, user_header, url):
     """
     Основной процесс дешифровки ответа от API Coinglass.

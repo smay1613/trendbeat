@@ -1,4 +1,5 @@
 from indicators import calculate_indicators
+from logger_output import log
 from trade_logic import trade_logic, determine_trend
 
 import pandas as pd
@@ -27,12 +28,12 @@ def get_historical_data(symbol, interval, start_date, end_date):
 
     return df[['close', 'high', 'low', 'open', 'volume']]
 
-log("Started")
-
-historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.start_date, BacktestConfig.end_date)
-historical_data = calculate_indicators(historical_data)
 
 if BacktestConfig.enabled:
+    log("Started")
+
+    historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.start_date, BacktestConfig.end_date)
+    historical_data = calculate_indicators(historical_data)
     try:
         for index, row in historical_data.iterrows():
             latest_price = row['close']
