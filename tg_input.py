@@ -7,6 +7,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, filters, Mes
 from config import LogConfig
 from logger_output import log, set_bot_commands_sync
 from formatting import format_price
+import market_overview
 
 
 class BotHandler:
@@ -123,10 +124,10 @@ class BotHandler:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        global overview_printer
+        #global overview_printer
 
         # NOTE: don't use sections!
-        overview_text = overview_printer.get_last(None, overview_settings_display)
+        overview_text = market_overview.overview_printer.get_last(None, overview_settings_display)
         if query:
             await query.edit_message_text(f"{overview_text}", parse_mode="Markdown",
                                           reply_markup=reply_markup)
@@ -349,8 +350,8 @@ class BotHandler:
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         # Edit the message to update the keyboard
-        global overview_printer
-        overview_text = overview_printer.get_last(overview_sections, settings.overview_settings_display)
+        #global overview_printer
+        overview_text = market_overview.overview_printer.get_last(overview_sections, settings.overview_settings_display)
         if query:
             await query.edit_message_text(f"{overview_text}", parse_mode="Markdown",
                                             reply_markup=reply_markup)
