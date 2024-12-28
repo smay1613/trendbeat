@@ -467,6 +467,7 @@ class UserManager:
         if not self.exists(user_id):
             database_helper.store("users", {"user_id": user_id, "username": username})
             self.users[user_id] = UserData(user_id)
+            self.users[user_id].strategies.register_default_strategies()
 
     def load_users(self):
         users = database_helper.get_table_data("users")
