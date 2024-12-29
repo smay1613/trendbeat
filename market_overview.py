@@ -406,12 +406,14 @@ class OverviewPrinter:
 
     def broadcast_market_overview(self, row, previous_row, users):
         update = self.get_market_overview(row, previous_row)
-        market_overview_text = self.overview_to_text(update)
 
         for user_id, user_data in users.items():
-            if not user_data.user_settings.market_overview_enabled:
+            settings = user_data.user_settings
+            if not settings.market_overview_enabled:
                 continue
-
+            display = settings.overview_settings_display
+            sections = settings.overview_sections
+            market_overview_text = self.overview_to_text(update, sections, display)
             log(market_overview_text, user_id)
 
 overview_printer = OverviewPrinter()
