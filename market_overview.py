@@ -3,9 +3,9 @@ import datetime
 import pytz
 
 from config import BacktestConfig
+from formatting import format_price
 from indicators import get_btc_dominance, get_fear_and_greed_index
 from logger_output import log
-from formatting import format_price
 from trade_logic import determine_trend
 
 
@@ -404,16 +404,19 @@ class OverviewPrinter:
             )
         )
 
-    def broadcast_market_overview(self, row, previous_row, users):
+    def broadcast_market_overview(self, row, previous_row, users, tg_bot):
         update = self.get_market_overview(row, previous_row)
 
-        for user_id, user_data in users.items():
-            settings = user_data.user_settings
-            if not settings.market_overview_enabled:
-                continue
-            display = settings.overview_settings_display
-            sections = settings.overview_sections
-            market_overview_text = self.overview_to_text(update, sections, display)
-            log(market_overview_text, user_id)
+        async def toggle_market_overview(context):
+            for user_id, user_data in users.items():
+                settings = user_data.user_settings
+                if not settings.market_overview_enabled:
+                    continue
+                try:
+                    await tg_bot.handle_market_overview_toggle(None, None, user_id)
+                except Exception as ex:
+                    log(f"Error during sending market overview to user {user_id} | Error: {ex}")
+
+        tg_bot.application.job_queue.run_once(toggle_market_overview, 0)
 
 overview_printer = OverviewPrinter()

@@ -1,3 +1,4 @@
+import asyncio
 import copy
 
 from telebot.types import BotCommand
@@ -307,25 +308,54 @@ class BotHandler:
         await update.message.reply_text(f"*{chosen_strategy}* is chosen.", parse_mode="Markdown",
                                         reply_markup=reply_markup)
 
-    async def strategies(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id):
+    async def strategies(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=None):
         try:
+            if update:
+                query = update.callback_query
+                user_id = update.effective_user.id
+            else:
+                query = None
+
+            if query:
+                await query.answer()
+
             user_data = self.user_manager.get(user_id)
             strategies = user_data.strategies
-            strategy_ids = [(f"🎰 {strategy.strategy_config.name}", strategy.strategy_id) for strategy in user_data.strategies.strategies.values()]
-            keyboard = [[strategy_id[0]] for strategy_id in strategy_ids]
-            keyboard.append(["↩️ Back"])
-            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-            context.user_data.clear()
-            context.user_data["strategy_ids"] = strategy_ids
-            context.user_data["current_step"] = "strategies_overview"
-            await update.message.reply_text(f"{strategies.dump()}", parse_mode="Markdown",
-                                            reply_markup=reply_markup)
+
+            inline_keyboard = [
+                [InlineKeyboardButton(f"🔄 Refresh", callback_data="strategies_refresh")]
+            ]
+            inline_markup = InlineKeyboardMarkup(inline_keyboard)
+
+            if not query:
+                strategy_ids = [(f"🎰 {strategy.strategy_config.name}", strategy.strategy_id) for strategy in
+                                user_data.strategies.strategies.values()]
+                keyboard = [[strategy_id[0]] for strategy_id in strategy_ids]
+                keyboard.append(["↩️ Back"])
+                reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+                context.user_data["strategy_ids"] = strategy_ids
+                context.user_data["current_step"] = "strategies_overview"
+
+                await update.message.reply_text(f"{strategies.dump()}", parse_mode="Markdown",
+                                                reply_markup=inline_markup)
+                await update.message.reply_text(f"🤖 Select strategy", parse_mode="Markdown",
+                                                reply_markup=reply_markup)
+            else:
+                if query.message.text_markdown.strip() != strategies.dump().strip():
+                    await query.edit_message_text(f"{strategies.dump()}", parse_mode="Markdown",
+                                                    reply_markup=inline_markup)
+
+
         except Exception as ex:
             log("Error occured during strategies: " + str(ex))
 
-    async def handle_market_overview_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        user_id = update.effective_user.id
+    async def handle_market_overview_toggle(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=None):
+        if update:
+            query = update.callback_query
+            user_id = update.effective_user.id
+        else:
+            query = None
+
         if query:
             await query.answer()
 
@@ -352,9 +382,13 @@ class BotHandler:
         # Edit the message to update the keyboard
         #global overview_printer
         overview_text = market_overview.overview_printer.get_last(overview_sections, settings.overview_settings_display)
+
         if query:
             await query.edit_message_text(f"{overview_text}", parse_mode="Markdown",
                                             reply_markup=reply_markup)
+        elif not update:
+            await self.application.bot.send_message(chat_id=user_id, text=f"{overview_text}",
+                                                    parse_mode="Markdown", reply_markup=reply_markup)
         else:
             await update.message.reply_text(f"{overview_text}", parse_mode="Markdown",
                                             reply_markup=reply_markup if "not collected" not in overview_text else None)
@@ -628,8 +662,7 @@ class BotHandler:
             log("Error occured during overview: " + str(ex))
 
 
-
-
+bot_handler = None
 
 def run_bot_server(user_manager):
     """
@@ -639,24 +672,22 @@ def run_bot_server(user_manager):
 
     # Create the bot application
     application = Application.builder().token(LogConfig.TELEGRAM_TOKEN).build()
+    global bot_handler
     bot_handler = BotHandler(user_manager, application)
 
     # Add command handlers
     application.add_handler(CommandHandler("start", bot_handler.start))
     application.add_handler(CommandHandler("help", bot_handler.start))
-    # application.add_handler(CommandHandler("strategies", bot_handler.strategies))
-    # application.add_handler(CommandHandler("overview", bot_handler.overview))
-    # application.add_handler(CommandHandler("market_overview_on", bot_handler.market_overview_on))
-    # application.add_handler(CommandHandler("alerts_on", bot_handler.alerts_on))
-    # application.add_handler(CommandHandler("market_overview_off", bot_handler.market_overview_off))
-    # application.add_handler(CommandHandler("alerts_off", bot_handler.alerts_off))
     application.add_handler(MessageHandler(filters=filters.TEXT & ~filters.COMMAND, callback=bot_handler.handle_user_response))
 
     application.add_handler(CallbackQueryHandler(bot_handler.handle_market_overview_toggle, pattern="toggle"))
     application.add_handler(CallbackQueryHandler(bot_handler.overview_preferences_display, pattern="display"))
     application.add_handler(CallbackQueryHandler(bot_handler.strategy_settings_risk_management, pattern="strategy_settings_risk_management"))
     application.add_handler(CallbackQueryHandler(bot_handler.strategy_settings_size, pattern="strategy_settings_position_"))
+    application.add_handler(CallbackQueryHandler(bot_handler.strategies, pattern="strategies_refresh"))
+
     application.add_handler(CallbackQueryHandler(bot_handler.dump_position_history, pattern="history"))
+    
 
     set_bot_commands_sync()
 

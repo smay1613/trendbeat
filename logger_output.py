@@ -24,7 +24,7 @@ def send_telegram_message(message, user_id=None):
 
         sync_bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
     except Exception as e:
-        print(f"Failed to send message: {e}")
+        print(f"Failed to send message: {e} | user_id {user_id}")
 
 logging.basicConfig(
     filename='bot.log',             # Имя файла для логов

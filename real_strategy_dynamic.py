@@ -13,6 +13,7 @@ from state import UserManager
 from tg_input import run_bot_server
 from trade_logic import trade_logic
 import market_overview
+import tg_input
 
 client = Client(ConnectionsConfig.TESTNET_API_KEY if BacktestConfig.testnet_md else ConnectionsConfig.API_KEY,
                 ConnectionsConfig.TESTNET_API_SECRET if BacktestConfig.testnet_md else ConnectionsConfig.API_SECRET,
@@ -95,7 +96,7 @@ def main_loop():
             if update:
                 row, previous_row, timestamp = update
                 #global overview_printer
-                market_overview.overview_printer.broadcast_market_overview(row, previous_row, user_manager.users)
+                market_overview.overview_printer.broadcast_market_overview(row, previous_row, user_manager.users, tg_input.bot_handler)
 
                 latest_price = row['close']
 
