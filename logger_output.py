@@ -32,12 +32,7 @@ def log(msg, user=None):
     if not BacktestConfig.enabled and RealTimeConfig.notify:
         send_telegram_message(msg, user)
 
-    if not user:
-        logging.info(msg)
-        print(msg)
-    else:
-        logging.info(msg)
-        print(f"Log sent to user {user}")
+    logging.info(msg)
 
 def log_error(msg):
     if not BacktestConfig.enabled and RealTimeConfig.notify:
