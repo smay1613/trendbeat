@@ -232,7 +232,7 @@ class BotHandler:
             elif section == "history":
                 await self.dump_position_history(update, context, chosen_strategy_object)
             elif section == "settings":
-                await self.strategy_settings(update, context)
+                await self.strategy_settings(update, context, intro=True)
 
     @safe_handler
     async def strategies(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=None):
@@ -421,9 +421,9 @@ class BotHandler:
                                             reply_markup=reply_markup if "not collected" not in overview_text else None)
 
     @safe_handler
-    async def strategy_settings(self, update, context):
+    async def strategy_settings(self, update, context, intro=False):
         query = update.callback_query
-        if query:
+        if query and not intro:
             await query.answer()
         message_text = update.message.text if not query else query.message.text
         current_strategy, current_strategy_name = self.determine_current_strategy(message_text, context.user_data)
@@ -445,7 +445,7 @@ class BotHandler:
 
         new_text = (f"{current_strategy_name}\n\n"
                     f"{user_strategy.strategy_config.dump(risks=True, long_rsi=True, short_rsi=True)}")
-        if not query:
+        if not query or intro:
             await message.reply_text(new_text,
                                      parse_mode="Markdown", reply_markup=reply_markup)
         elif query.message.text_markdown.strip() != new_text.strip():
