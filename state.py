@@ -1,8 +1,9 @@
 import copy
 import datetime
+import random
 
 from config import BacktestConfig, StrategyConfig
-from database_helper import DatabaseHelper, get_database_helper
+from database_helper import DatabaseHelper, get_database_helper, DatabaseConfig
 from formatting import format_price, format_number
 from logger_output import log
 
@@ -61,7 +62,7 @@ class StrategyStats:
             f"💼 *Allocated Capital:*    `{format_number(self.allocated_capital)}`\n"
             f"{pnl_color} *Cumulative P&L:*       `{format_number(self.cumulative_profit_loss)}` {pnl_symbol}\n"
             f"🛠️ *Exchange Commissions:* `{'-' if self.total_commission > 0 else ''}{format_number(self.total_commission)}`\n"
-            f"\n🧮 *Trade Statistics*\n"
+            f"\n🧮 *Trade Statistics*\n\n"
             f"🌟 *Successful Trades:*     `{self.successful_trades}`\n"
             f"💔 *Failed Trades:*            `{self.unsuccessful_trades}`\n"
             f"🥇 *Win Rate:*                     `{format_number(win_rate, dollars=False)}%`"
@@ -362,7 +363,7 @@ class UserStrategies:
 
         return [TradeStrategy(self.user_id, extreme_rsi_strategy), TradeStrategy(self.user_id, neutral_rsi_strategy)]
 
-    def dump(self):
+    def dump(self, risks, rsi):
         header = "🤖 *Active strategies*\n\n" + '──────────\n'
 
         msg = header
@@ -371,11 +372,17 @@ class UserStrategies:
             return msg
 
         for strategy in self.strategies.values():
-            msg += f"🎰 *{strategy.strategy_config.name}*\n\n"
-            msg += strategy.stats.dump_short()
-            msg += strategy.position_state.dump_short()
-            msg += strategy.strategy_config.dump() + '──────────\n'
+            msg += self.dump_strategy(strategy, risks, rsi)
 
+        return msg
+
+    def dump_strategy(self, strategy, risks, rsi, separator=True):
+        msg = ""
+        msg += f"🎰 *{strategy.strategy_config.name}*\n\n"
+        msg += strategy.stats.dump_short()
+        msg += strategy.position_state.dump_short()
+        msg += (strategy.strategy_config.dump(risks=risks, long_rsi=rsi, short_rsi=rsi)
+                + ('──────────\n' if separator else ''))
         return msg
 
     def register_default_strategies(self):
@@ -421,7 +428,10 @@ class TradeStrategy:
                 generated_id = response[0]['strategy_id']
                 self.strategy_id = generated_id
             else:
-                raise Exception(f"Failed to insert strategy: {response.error}")
+                if not DatabaseConfig.store_to_db:
+                    self.strategy_id = random.randint(1, 10000)
+                else:
+                    raise Exception(f"Failed to insert strategy: {response.error}")
 
         self.stats.store(self.strategy_id)
         self.strategy_config.store(self.strategy_id)
@@ -515,22 +525,22 @@ class UserManager:
             current_balance, allocated_capital, comment, profit_loss, cumulative_profit_loss, commission
         """).execute()
         overview_sections = db.table("overview_sections_config").select("""
-            price, trend, support_resistance, sentiment
+            user_id, price, trend, support_resistance, sentiment
         """).execute()
         overview_settings = db.table("overview_display_config").select("""
-            price, volume, rsi, trend, ema, bands, support, resistance, dominance, sentiment, session
+            user_id, price, volume, rsi, trend, ema, bands, support, resistance, dominance, sentiment, session
         """).execute()
 
         user_to_settings = separate("user_id", config_response.data)
         strategies = separate("user_id", user_strategies.data, unique=False)
         overview_sections = separate("user_id", overview_sections.data)
         overview_settings = separate("user_id", overview_settings.data)
+
         strategies_stats = separate("strategy_id", stats_response.data)
         position_stats = separate("strategy_id", position_response.data)
         balance_stats = separate("strategy_id", balance_response.data)
         strategies_configs = separate("strategy_id", strategy_config_response.data)
         history = separate("strategy_id", trade_logs_response.data, unique=False)
-
 
         # Update users with fetched data
         for user_id, user_data in self.users.items():

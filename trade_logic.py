@@ -1,8 +1,8 @@
 from log_trade import log_trade
-from state import *
+from prod.logger_output import log
+from state import MarketState
 
 
-# TODO: FIX
 def is_high_volume(row):
     return float(row['volume']) > row['Average_Volume']
 
@@ -12,7 +12,6 @@ def is_high_volume(row):
 #     position_size = 300.0 #risk_per_trade / atr  # учитываем волатильность
 #     return position_size * BacktestConfig.LEVERAGE
 
-# TODO: BROADCAST CHANGE
 def determine_trend(row, user=None, user_id=None):
     ema_7 = row['EMA_7']
     ema_25 = row['EMA_25']

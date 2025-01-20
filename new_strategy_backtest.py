@@ -31,6 +31,8 @@ def get_historical_data(symbol, interval, start_date, end_date):
 
 if BacktestConfig.enabled:
     log("Started")
+    default_user = UserData('1')
+    default_user.strategies.register_default_strategies()
 
     historical_data = get_historical_data(BacktestConfig.symbol, BacktestConfig.interval, BacktestConfig.start_date, BacktestConfig.end_date)
     historical_data = calculate_indicators(historical_data)
@@ -41,7 +43,8 @@ if BacktestConfig.enabled:
 
             if len(historical_data) >= 200:
                 determine_trend(row)
-                trade_logic(row, timestamp, latest_price)
+                for strategy in default_user.strategies.strategies.values():
+                    trade_logic(row, timestamp, latest_price, strategy, default_user)
 
             # Print current P&L for open positions
             # current_PL = 0

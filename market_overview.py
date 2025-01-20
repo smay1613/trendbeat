@@ -1,11 +1,12 @@
 import datetime
+from collections import deque
 
 import pytz
 
 from config import BacktestConfig
 from formatting import format_price
 from indicators import get_btc_dominance, get_fear_and_greed_index
-from logger_output import log
+from chart import fetch_chart
 from trade_logic import determine_trend
 
 
@@ -111,8 +112,11 @@ def format_value_change(current_value, previous_value, format_as_price=False, pr
             return f"{value:+.1f}".rstrip('0').rstrip('.')
 
         change = f'{format_number(change)}'
-
-    return f"`{(f'{previous_value} ' if not format_as_price else format_price(previous_value)) if print_previous_value else ''}`_{change}_ {trend_icon}"
+    if print_previous_value:
+        prev_value = f'`{f"{previous_value }" if not format_as_price else (format_price(previous_value) + " ")}`'
+    else:
+        prev_value = ''
+    return f"{prev_value}_{change}_ {trend_icon}"
 
 def format_bands(formatted_data, previous_formatted_data):
     def broken_icon(is_broken):
@@ -267,9 +271,10 @@ def get_trading_session():
 
 class OverviewPrinter:
     def __init__(self):
-        self.last_market_overview = {}
+        self.max_overviews = 48
+        self.last_market_overviews = deque(maxlen=self.max_overviews)
 
-    def get_market_overview(self, row, previous_row):
+    def append_market_overview(self, row, previous_row):
         trend, trend_type = determine_trend(row)
         formatted_data = {key: value for key, value in list(row.to_dict().items())}
         previous_formatted_data = {key: value for key, value in list(previous_row.to_dict().items())}
@@ -284,6 +289,7 @@ class OverviewPrinter:
         overview = {}
 
         overview['Session'] = get_trading_session()
+        overview['Timestamp'] = datetime.datetime.utcnow().strftime("%d.%m %H:%M")
 
         overview['Price'] = (
             f"\n💰 *Price*\n"
@@ -346,15 +352,17 @@ class OverviewPrinter:
             f"{separator} `{fear_and_greed_value}` | {format_value_change(fear_and_greed_value, fear_and_greed_value_yesterday)} | _{fear_and_greed_text.lower()}_ | {fear_and_greed_status_icon(fear_and_greed_value)}\n"
         )
 
-        self.last_market_overview = overview
+        overview['ChartURL'] = fetch_chart()
+
+        self.last_market_overviews.append(overview)
 
         return overview
 
-    def get_last(self, settings=None, display_settings=None):
-        return self.overview_to_text(self.last_market_overview, settings, display_settings)
+    def get_last(self, settings=None, display_settings=None, index=-1):
+        return self.overview_to_text(self.last_market_overviews[index] if len(self.last_market_overviews) else None, settings, display_settings)
 
     def overview_to_text(self, overview, settings=None, display_settings=None):
-        if len(overview) == 0:
+        if not overview:
             return "💤 Overview is not collected yet"
         all_enabled = not display_settings
         price_enabled = not settings or settings['price']
@@ -368,9 +376,10 @@ class OverviewPrinter:
         has_sentiment_section = all_enabled or display_settings['dominance'] or display_settings['sentiment']
 
         section_separator = "──────────\n"
-
-        return (
-            f"🌎 *{BacktestConfig.symbol} Market Overview* | {BacktestConfig.interval} {('| _' + overview['Session'] + '_') if all_enabled or display_settings['session'] else ''}\n"
+        chart_link = f"[Market Overview]({overview['ChartURL']})" if overview['ChartURL'] else "*Market Overview*"
+        msg = (
+            f"🌎 *{BacktestConfig.symbol}* {chart_link} | {BacktestConfig.interval} {('| _' + overview['Session'] + '_')}\n"
+            f"🕓 {overview['Timestamp']}\n"
             f"{section_separator}" +
             (
                 (
@@ -404,19 +413,5 @@ class OverviewPrinter:
             )
         )
 
-    def broadcast_market_overview(self, row, previous_row, users, tg_bot):
-        update = self.get_market_overview(row, previous_row)
-
-        async def toggle_market_overview(context):
-            for user_id, user_data in users.items():
-                settings = user_data.user_settings
-                if not settings.market_overview_enabled:
-                    continue
-                try:
-                    await tg_bot.handle_market_overview_toggle(None, None, user_id)
-                except Exception as ex:
-                    log(f"Error during sending market overview to user {user_id} | Error: {ex}")
-
-        tg_bot.application.job_queue.run_once(toggle_market_overview, 0)
-
+        return msg
 overview_printer = OverviewPrinter()

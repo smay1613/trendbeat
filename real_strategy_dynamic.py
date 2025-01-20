@@ -1,19 +1,19 @@
 import datetime
 import threading
 import time
+import traceback
 
 import pandas as pd
 from binance import Client
 
+import market_overview
 from config import BacktestConfig, RealTimeConfig, ConnectionsConfig
 from fake_server import run_web_server
 from indicators import calculate_indicators
-from logger_output import log
+from logger_output import log, log_error
 from state import UserManager
 from tg_input import run_bot_server
 from trade_logic import trade_logic
-import market_overview
-import tg_input
 
 client = Client(ConnectionsConfig.TESTNET_API_KEY if BacktestConfig.testnet_md else ConnectionsConfig.API_KEY,
                 ConnectionsConfig.TESTNET_API_SECRET if BacktestConfig.testnet_md else ConnectionsConfig.API_SECRET,
@@ -64,7 +64,13 @@ class HistoricalDataLoader:
         return new_data
 
     def get_update(self):
-        new_data = self.get_last()
+        try:
+            new_data = self.get_last()
+        except Exception as e:
+            log_error(f"Error while getting last candle: {e}\n"
+                      f"{traceback.format_exc()}")
+            return None
+
         if new_data.index[-1] > self.historical_data.index[-1]:
             previous_row = self.historical_data.iloc[-1]
             self.historical_data = pd.concat([self.historical_data, new_data])
@@ -78,8 +84,12 @@ class HistoricalDataLoader:
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
-user_manager = UserManager()
-history_data_loader = HistoricalDataLoader()
+try:
+    user_manager = UserManager()
+    history_data_loader = HistoricalDataLoader()
+except Exception as e:
+    log_error(f"Startup failed! {e}\n"
+              f"{traceback.format_exc()}")
 
 def main_loop():
     while True:
@@ -95,9 +105,11 @@ def main_loop():
             update = history_data_loader.get_update()
             if update:
                 row, previous_row, timestamp = update
-                #global overview_printer
-                market_overview.overview_printer.broadcast_market_overview(row, previous_row, user_manager.users, tg_input.bot_handler)
-
+                try:
+                    market_overview.overview_printer.append_market_overview(row, previous_row)
+                except Exception as e:
+                    log_error(f"Failed to append market overview! {e}\n"
+                              f"{traceback.format_exc()}")
                 latest_price = row['close']
 
                 for user_data in list(user_manager.users.values()):
@@ -108,9 +120,14 @@ def main_loop():
                 time.sleep(60)
 
         except Exception as e:
-            log(f"Error occurred: {e}")
+            log_error(f"Error occurred: {e}\n"
+                f"{traceback.format_exc()}")
             time.sleep(300)  # Ожидание перед повторной попыткой
 
 
 threading.Thread(target=main_loop, daemon=True).start()
-run_bot_server(user_manager)
+try:
+    run_bot_server(user_manager)
+except Exception as e:
+    log_error(f"Running bot failed! {e}\n"
+              f"{traceback.format_exc()}")

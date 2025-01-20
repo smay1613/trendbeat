@@ -147,3 +147,10 @@ class LogConfig:
 
 class CoinmarketCapConfig:
     API_KEY = os.getenv("COINMARKETCAP_KEY")
+
+class ChartImgConfig:
+    API_KEY = os.getenv('CHART_IMG_KEY')
+    layout_id = os.getenv('CHART_IMG_CHART_ID')
+    session_id = os.getenv('TRADINGVIEW_SESSION_ID')
+    session_sign = os.getenv('TRADINGVIEW_SESSION_KEY')
+    enabled = True

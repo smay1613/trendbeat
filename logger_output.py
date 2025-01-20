@@ -5,7 +5,6 @@ from telebot.types import BotCommand
 
 from config import *
 
-# Инициализируем бота
 sync_bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
 
 
@@ -17,21 +16,17 @@ def set_bot_commands_sync():
     global sync_bot
     sync_bot.set_my_commands(commands)
 
-def send_telegram_message(message, user_id=None):
+def send_telegram_message(message, user_id=None, error=False):
     try:
         if not user_id:
             user_id = ConnectionsConfig.CHAT_ID
 
-        sync_bot.send_message(chat_id=user_id, text=message, parse_mode="Markdown")
+        max_length = 4000
+        short_text = message if len(message) <= max_length else message[:2000] + "\n...\n" + message[-2000:]
+
+        sync_bot.send_message(chat_id=user_id, text=short_text, parse_mode="Markdown" if not error else None)
     except Exception as e:
         print(f"Failed to send message: {e} | user_id {user_id}")
-
-logging.basicConfig(
-    filename='bot.log',             # Имя файла для логов
-    filemode='a',                   # Режим записи: 'a' — добавление в конец файла, 'w' — перезапись файла
-    format='%(asctime)s - %(levelname)s - %(message)s',  # Формат записи
-    level=logging.INFO               # Уровень логирования (INFO, DEBUG, WARNING, ERROR, CRITICAL)
-)
 
 def log(msg, user=None):
     if not BacktestConfig.enabled and RealTimeConfig.notify:
@@ -43,3 +38,9 @@ def log(msg, user=None):
     else:
         logging.info(msg)
         print(f"Log sent to user {user}")
+
+def log_error(msg):
+    if not BacktestConfig.enabled and RealTimeConfig.notify:
+        send_telegram_message(msg, error=True)
+
+    logging.error(f"[Error] {msg}")

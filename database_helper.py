@@ -5,7 +5,7 @@ from threading import Lock
 from supabase import create_client, Client
 
 class DatabaseConfig:
-    store_to_db = False
+    store_to_db = True
 
     SUPABASE_URL = os.getenv("SUPABASE_URL")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -28,9 +28,9 @@ class DatabaseHelper:
 
     @staticmethod
     def store(table: str, data: dict):
-        # if not DatabaseConfig.store_to_db:
-        #     log("DB is disabled, skipping update")
-        #     return None
+        if not DatabaseConfig.store_to_db:
+            # log("DB is disabled, skipping update")
+            return None
 
         """
         Insert or update a record in the specified table.

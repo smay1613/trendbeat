@@ -1,6 +1,9 @@
 import ta
 import requests
 
+from prod.logger_output import log_error
+
+
 def calculate_indicators(df):
     price = df['close']
     df['EMA_7'] = ta.trend.ema_indicator(price, window=7)
@@ -53,7 +56,9 @@ def get_btc_dominance():
         btc_dominance_yesterday = data['data']['btc_dominance_yesterday']
         return round(btc_dominance, 1), round(btc_dominance_yesterday, 1)
     else:
-        return None
+        log_error("Failed to obtain btc dominance from coinmarketcap, response:\n"
+                  f"{response.json()}")
+        return 0, 0
 
 
 def get_fear_and_greed_index():
