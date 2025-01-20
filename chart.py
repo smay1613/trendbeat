@@ -1,7 +1,7 @@
 import requests
 
-from prod.config import ChartImgConfig
-from prod.logger_output import log_error
+from config import ChartImgConfig
+from logger_output import log_error
 
 
 def fetch_chart_as_url(api_key, layout_id, session_id, session_sign):

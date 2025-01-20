@@ -1,5 +1,5 @@
 from log_trade import log_trade
-from prod.logger_output import log
+from logger_output import log
 from state import MarketState
 
 

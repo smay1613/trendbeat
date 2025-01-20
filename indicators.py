@@ -1,7 +1,7 @@
 import ta
 import requests
 
-from prod.logger_output import log_error
+from logger_output import log_error
 
 
 def calculate_indicators(df):
