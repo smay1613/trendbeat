@@ -322,7 +322,10 @@ class BotHandler:
                 elif section == "next":
                     context.user_data['current_overview_position'] += 1
                 elif section != "refresh":
-                    overview_sections[section] = not overview_sections[section]
+                    settings_section = section
+                    if section == "support/Resistance":
+                        settings_section = "support_resistance"
+                    overview_sections[settings_section] = not overview_sections[settings_section]
                     settings.store_overview_sections(user_id)
             elif query.data.startswith("more_"):
                 more_section = query.data.replace("more_", "")
