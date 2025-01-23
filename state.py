@@ -349,13 +349,13 @@ class UserStrategies:
         return self.strategies[id] if id in self.strategies else None
 
     def setup_default_strategies(self):
-        extreme_rsi_strategy = StrategyConfig("Reversal hunter")
-        extreme_rsi_strategy.setup_risk_checks(min_adx=15, allow_weak_trend=True, close_on_trend_reverse=False, high_volume_only=True)
-        extreme_rsi_strategy.setup_long_position(enter=32, additional_enter=23, exit=68)
-        extreme_rsi_strategy.setup_short_position(enter=82, additional_enter=90, exit=55)
+        extreme_rsi_strategy = StrategyConfig("TrendBeat Aggressive")
+        extreme_rsi_strategy.setup_risk_checks(min_adx=15, allow_weak_trend=False, close_on_trend_reverse=True, high_volume_only=True)
+        extreme_rsi_strategy.setup_long_position(enter=62, additional_enter=46, exit=78)
+        extreme_rsi_strategy.setup_short_position(enter=38, additional_enter=52, exit=28)
         extreme_rsi_strategy.setup_position_settings(position_size=150.0)
 
-        neutral_rsi_strategy = StrategyConfig("Trend waves")
+        neutral_rsi_strategy = StrategyConfig("TrendBeat Neutral")
         neutral_rsi_strategy.setup_risk_checks(min_adx=15, allow_weak_trend=False, close_on_trend_reverse=True, high_volume_only=True)
         neutral_rsi_strategy.setup_long_position(enter=56, additional_enter=36, exit=72)
         neutral_rsi_strategy.setup_short_position(enter=58, additional_enter=68, exit=28)

@@ -43,7 +43,8 @@ class BotHandler:
     @safe_handler
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
-        self.user_manager.add_user_if_not_exist(user.id, user.username)
+        username = user.username if user.username else user.full_name if user.full_name else "Unknown User"
+        self.user_manager.add_user_if_not_exist(user.id, username)
         await update.message.reply_text(
             BotHandler.prompt, parse_mode="Markdown"
         )
@@ -305,6 +306,8 @@ class BotHandler:
         overview_sections = settings.overview_sections
 
         overviews_count = len(market_overview.overview_printer.last_market_overviews)
+        if (not 'current_overview_position' in context.user_data) or context.user_data['current_overview_position'] == 0:
+            context.user_data['current_overview_position'] = overviews_count
 
         if query:
             # Update the toggled section
@@ -366,7 +369,7 @@ class BotHandler:
         if not display_view:
             keyboard.append(navigation_keyboard)
             keyboard.append([InlineKeyboardButton(f"⚙️ Settings", callback_data="toggle_sections_view"),
-                             InlineKeyboardButton(f"🖼 Chart", callback_data="toggle_chart_open",
+                             InlineKeyboardButton(f"🖼 Chart",
                                                   url="https://www.tradingview.com/chart/ddsB3Vf5/")])
             service_keyboard = [InlineKeyboardButton('↩️ Back', callback_data="discard_message"),
                                 InlineKeyboardButton('🔄 Refresh', callback_data='toggle_refresh')]
@@ -415,7 +418,9 @@ class BotHandler:
         overview_text = market_overview.overview_printer.get_last(overview_sections, settings.overview_settings_display, index=current_shown - 1)
 
         if query:
-            is_changed = not (query.data == "toggle_refresh" and query.message.text_markdown.strip() == overview_text.strip())
+            is_changed = not (query.data == "toggle_refresh"
+                              and query.message.text_markdown.strip() == overview_text.strip()
+                              and query.message.reply_markup == reply_markup)
             if is_changed:
                 await query.edit_message_text(f"{overview_text}", parse_mode="Markdown",
                                               reply_markup=reply_markup)
