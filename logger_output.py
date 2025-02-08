@@ -7,6 +7,7 @@ from config import *
 
 sync_bot = TeleBot(token=LogConfig.TELEGRAM_TOKEN)
 
+logging.basicConfig(level=logging.INFO)
 
 def set_bot_commands_sync():
     commands = [

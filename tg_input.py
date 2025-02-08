@@ -7,6 +7,7 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKe
 from telegram.ext import Application, CommandHandler, ContextTypes, filters, MessageHandler, CallbackQueryHandler
 
 from config import LogConfig
+from trade_drop import force_close_all
 from logger_output import log, set_bot_commands_sync, log_error
 from formatting import format_price
 import market_overview
@@ -81,9 +82,7 @@ class BotHandler:
 
         user_text = update.message.text
 
-        if user_text.startswith("🎰"):  # strategy
-            await self.show_strategy_menu(update, context, user_text)
-        elif user_text.startswith("🏘 Home"):
+        if user_text.startswith("🏘 Home"):
                 await self.show_menu(update, context)
         elif user_text.startswith("🌎 Market Overview"):
             await self.overview(update, context)
@@ -227,13 +226,61 @@ class BotHandler:
                                                 f"{chosen_strategy_object.stats.dump()}", parse_mode="Markdown",
                                                reply_markup=reply_markup)
             elif section == "positions":
-                await query.message.reply_text(f"{current_strategy_name}\n\n"
-                                                f"{chosen_strategy_object.position_state.dump()}", parse_mode="Markdown",
-                                               reply_markup=reply_markup)
+                await self.show_positions_menu(update, context, intro=True)
             elif section == "history":
                 await self.dump_position_history(update, context, chosen_strategy_object)
             elif section == "settings":
                 await self.strategy_settings(update, context, intro=True)
+
+    @safe_handler
+    async def show_positions_menu(self, update, context, intro=False):
+        query = update.callback_query
+
+        if query and not intro:
+            await query.answer()
+
+        message_text = query.message.text if query else update.message.text
+        current_strategy, current_strategy_name = self.determine_current_strategy(message_text, context.user_data)
+
+        user_id = update.effective_user.id
+        user = self.user_manager.get(user_id)
+        user_strategy = user.strategies.get_strategy(current_strategy)
+
+        positions = user_strategy.position_state
+        position_opened = positions.long_position_opened or positions.short_position_opened
+
+        position_close_confirmed = query and query.data == "close_position_confirmed"
+
+        if position_opened and position_close_confirmed:
+            force_close_all(user_strategy, user)
+            return
+
+        position_close_confirmation_state = query and query.data == "close_position_now"
+        keyboard = []
+
+        if position_opened:
+            if position_close_confirmation_state:
+                keyboard.append([InlineKeyboardButton('❌ Discard', callback_data="positions_refresh"),
+                                 InlineKeyboardButton('✅ Confirm', callback_data="close_position_confirmed")])
+            else:
+                keyboard.append([InlineKeyboardButton('🛑 Close', callback_data="close_position_now")])
+
+        keyboard.append([InlineKeyboardButton('↩️ Back', callback_data="discard_message"),
+            InlineKeyboardButton('🔄 Refresh', callback_data="positions_refresh")])
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        new_text = (f"{current_strategy_name}\n\n"
+                   f"{user_strategy.position_state.dump()}\n")
+        if intro:
+            await query.message.reply_text(f"{new_text}", parse_mode="Markdown",
+                                           reply_markup=reply_markup)
+        elif query and position_close_confirmation_state:
+            await query.message.edit_text(f"{new_text}"
+                                           f"_Confirm position close?_",
+                                           parse_mode="Markdown", reply_markup=reply_markup)
+        elif query:
+            if query.message.text_markdown.strip() != new_text.strip():
+                await query.message.edit_text(f"{new_text}", parse_mode="Markdown", reply_markup=reply_markup)
 
     @safe_handler
     async def strategies(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id=None):
@@ -252,7 +299,6 @@ class BotHandler:
         if not 'strategies_view_expanded' in context.user_data:
             context.user_data['strategies_view_expanded'] = False
 
-        is_expanded = context.user_data["strategies_view_expanded"]
         if query:
             # Update the toggled section
             section = query.data.replace("strategies_menu_", "")
@@ -875,6 +921,8 @@ def run_bot_server(user_manager):
     application.add_handler(CallbackQueryHandler(bot_handler.show_strategy_menu, pattern="strategy_menu"))
 
     application.add_handler(CallbackQueryHandler(bot_handler.dump_position_history, pattern="history"))
+    application.add_handler(CallbackQueryHandler(bot_handler.show_positions_menu, pattern="close_position_"))
+    application.add_handler(CallbackQueryHandler(bot_handler.show_positions_menu, pattern="positions_refresh"))
 
     set_bot_commands_sync()
 

@@ -5,8 +5,8 @@ import random
 from config import BacktestConfig, StrategyConfig
 from database_helper import DatabaseHelper, get_database_helper, DatabaseConfig
 from formatting import format_price, format_number
-from logger_output import log
-
+from logger_output import log, log_error
+from trade_drop import calculate_pnl
 
 database_helper = get_database_helper()
 
@@ -58,6 +58,7 @@ class StrategyStats:
 
         message = (
             "🏦 *Balance*\n\n"
+            f"💰 *Total Capital:*      `{format_number(self.current_capital + self.allocated_capital)}`\n"
             f"💰 *Free Capital:*      `{format_number(self.current_capital)}`\n"
             f"💼 *Allocated Capital:*    `{format_number(self.allocated_capital)}`\n"
             f"{pnl_color} *Cumulative P&L:*       `{format_number(self.cumulative_profit_loss)}` {pnl_symbol}\n"
@@ -193,16 +194,20 @@ class PositionState:
 
     def dump_short(self):
         message = ""
+        current_pnl = calculate_pnl(self)
+        # current_pnl_color = "🔴" if current_pnl < 0 else "🟢"
+        current_pnl_symbol = '🔺' if current_pnl >= 0 else '🔻'
+
         if self.long_position_opened:
             multiplier = f" (x{self.long_positions})" if self.long_positions > 1 else ""
             message += (
-                f"🍏 *Long* {multiplier} | `{format_price(self.long_entry_price)}`\n"
+                f"🍏 *Long* {multiplier} | `{format_price(self.long_entry_price)}` | `{format_number(current_pnl)}` {current_pnl_symbol}\n"
             )
 
         if self.short_position_opened:
             multiplier = f" (x{self.short_positions})" if self.short_positions > 1 else ""
             message += (
-                f"🍎 *Short* {multiplier} | `{format_price(self.short_entry_price)}`\n"
+                f"🍎 *Short* {multiplier} | `{format_price(self.short_entry_price)}` | `{format_number(current_pnl)}` {current_pnl_symbol}\n"
             )
 
         if not self.long_position_opened and not self.short_position_opened:
@@ -212,21 +217,27 @@ class PositionState:
 
     def dump(self):
         message = "💼 *Open Positions*\n\n"
+        current_pnl = calculate_pnl(self)
+        current_pnl_color = "🔴" if current_pnl < 0 else "🟢"
+        current_pnl_symbol = '🔺' if current_pnl >= 0 else '🔻'
 
         if self.long_position_opened:
             multiplier = f" (x{self.long_positions})" if self.long_positions > 1 else ""
+
             message += (
                 f"🍏 *Long* {multiplier}\n"
-                f"💵 Entry: `{format_price(self.long_entry_price)}`\n"
-                f"📦️ Size: `{format_price(self.long_entry_size)} x{self.leverage}` (`{format_price(self.long_entry_full_size)}`)\n"
+                f"💵 *Entry*: `{format_price(self.long_entry_price)}`\n"
+                f"📦️ *Size*: `{format_price(self.long_entry_size)} x{self.leverage}` (`{format_price(self.long_entry_full_size)}`)\n"
+                f"{current_pnl_color} *P&L*:  `{format_number(current_pnl)}` {current_pnl_symbol}\n"
             )
 
         if self.short_position_opened:
             multiplier = f" (x{self.short_positions})" if self.short_positions > 1 else ""
             message += (
                 f"🍎 *Short* {multiplier}\n"
-                f"💵 Entry: `{format_price(self.short_entry_price)}`\n"
-                f"📦️ Size: `{format_price(self.short_entry_size)} x{self.leverage}` (`{format_price(self.short_entry_full_size)}`)\n"
+                f"💵 *Entry*: `{format_price(self.short_entry_price)}`\n"
+                f"📦️ *Size*: `{format_price(self.short_entry_size)} x{self.leverage}` (`{format_price(self.short_entry_full_size)}`)\n"
+                f"{current_pnl_color} *P&L*:  `{format_number(current_pnl)}` {current_pnl_symbol}\n"
             )
 
         if not self.long_position_opened and not self.short_position_opened:
@@ -236,7 +247,6 @@ class PositionState:
 
     def close_all(self, type, price):
         profit_loss = 0
-        self.leverage = 0
 
         if "long" in type.lower():
             entry_price = self.long_entry_price
@@ -245,6 +255,7 @@ class PositionState:
             self.long_entry_price = 0
             self.long_entry_size = 0
             self.long_entry_full_size = 0
+            self.long_position_opened = False
         elif "short" in type.lower():
             entry_price = self.short_entry_price
             profit_loss = (self.short_entry_price - price) * (self.short_entry_full_size / self.short_entry_price)
@@ -252,6 +263,10 @@ class PositionState:
             self.short_entry_price = 0
             self.short_entry_size = 0
             self.short_entry_full_size = 0
+            self.short_position_opened = False
+
+        self.leverage = 0
+        self.position_qty = 0
 
         return round(profit_loss, 2), entry_price
 
@@ -417,8 +432,11 @@ class TradeStrategy:
         self.strategy_config = config
 
     def store_state(self):
-        self.stats.store(self.strategy_id)
-        self.position_state.store(self.strategy_id)
+        try:
+            self.stats.store(self.strategy_id)
+            self.position_state.store(self.strategy_id)
+        except Exception as e:
+            log_error(f"Error during storing strategy state: {e}")
 
     def store(self):
         if not self.strategy_id:

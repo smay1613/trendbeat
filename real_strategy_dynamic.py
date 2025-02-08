@@ -7,7 +7,7 @@ import market_overview
 from config import RealTimeConfig
 from fake_server import run_web_server
 from historical_data_loader import HistoricalDataLoader
-from logger_output import log_error
+from logger_output import log_error, log
 from state import UserManager
 from tg_input import run_bot_server
 from trade_logic import trade_logic
@@ -16,6 +16,8 @@ threading.Thread(target=run_web_server, daemon=True).start()
 
 user_manager = UserManager()
 history_data_loader = HistoricalDataLoader()
+
+log("Started")
 
 def main_loop():
     while True:

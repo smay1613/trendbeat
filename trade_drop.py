@@ -1,6 +1,7 @@
 import datetime
 
 from logger_output import log
+from market_data import price_tracker
 from order_management import open_position, close_position
 from formatting import format_number, format_price
 
@@ -12,6 +13,17 @@ def calculate_commission(size, is_taker=True):
     fee_rate = TAKER_FEE if is_taker else MAKER_FEE
     commission = size * fee_rate
     return commission
+
+def calculate_pnl(position_state, price=None):
+    if price is None:
+        price = price_tracker.get_price()
+
+    if position_state.long_position_opened and position_state.long_entry_price:
+        return (price - position_state.long_entry_price) * (position_state.long_entry_full_size / position_state.long_entry_price)
+    elif position_state.short_position_opened and position_state.short_entry_price:
+        return (position_state.short_entry_price - price) * (position_state.short_entry_full_size / position_state.short_entry_price)
+
+    return 0.0
 
 def update_balance_and_stats(timestamp, trade_type, price, size, comment, profit_loss, leverage, strategy):
     commission = calculate_commission(size)
@@ -47,10 +59,11 @@ def update_balance_and_stats(timestamp, trade_type, price, size, comment, profit
         'commission': round(commission, 2),
     })
 
-
-def log_trade(timestamp, trade_type, price, size, comment, strategy, user):
+def log_trade(timestamp, trade_type, size, comment, strategy, user, price=None):
     profit_loss = 0.0
     position_state = strategy.position_state
+    if not price:
+        price = price_tracker.get_price()
 
     leverage = strategy.strategy_config.leverage
     full_position_size = size * leverage
@@ -98,3 +111,16 @@ def log_trade(timestamp, trade_type, price, size, comment, strategy, user):
     )
 
     log(f"{formatted_signal}", user.user_id)
+
+def force_close_all(strategy, user):
+    position_state = strategy.position_state
+    timestamp = datetime.datetime.utcnow()
+
+    def close(direction):
+        log_trade(timestamp, f'Close {direction}',
+                  position_state.long_entry_size, "Manual close", strategy, user)
+
+    if position_state.long_position_opened:
+        close('Long')
+    elif position_state.short_position_opened:
+        close('Short')

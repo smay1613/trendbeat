@@ -1,4 +1,4 @@
-from log_trade import log_trade
+from trade_drop import log_trade
 from logger_output import log
 from state import MarketState
 
@@ -62,33 +62,33 @@ def trade_logic(row, timestamp, latest_price, strategy, user):
         if MarketState.trend == "LONG":
             if position_state.short_position_opened and strategy_config.close_on_trend_reverse:
                 position_state.short_position_opened = False
-                log_trade(timestamp, 'Close Short', latest_price, position_state.short_entry_size, "Trend reversal", strategy, user)
+                log_trade(timestamp, 'Close Short', position_state.short_entry_size, "Trend reversal", strategy, user)
 
             if position_state.long_position_opened and rsi_6 > strategy_config.long_buy_rsi_exit:
                 position_state.long_position_opened = False
-                log_trade(timestamp, 'Close Long', latest_price, position_state.long_entry_size, f"RSI > {strategy_config.long_buy_rsi_exit}", strategy, user)
+                log_trade(timestamp, 'Close Long', position_state.long_entry_size, f"RSI > {strategy_config.long_buy_rsi_exit}", strategy, user)
 
             if not position_state.long_position_opened and rsi_6 < strategy_config.long_buy_rsi_enter:
                 position_state.long_position_opened = True
-                log_trade(timestamp, 'Open Long', latest_price, position_size, f"RSI < {strategy_config.long_buy_rsi_enter}", strategy, user)
+                log_trade(timestamp, 'Open Long', position_size, f"RSI < {strategy_config.long_buy_rsi_enter}", strategy, user)
 
             if position_state.long_position_opened and position_state.long_positions == 1 and rsi_6 < strategy_config.long_buy_additional_enter:
-                log_trade(timestamp, 'Open Long', latest_price, position_size,
+                log_trade(timestamp, 'Open Long', position_size,
                           f"DCA RSI < {strategy_config.long_buy_additional_enter}", strategy, user)
 
         elif MarketState.trend == "SHORT":
             if position_state.long_position_opened and strategy_config.close_on_trend_reverse:
                 position_state.long_position_opened = False
-                log_trade(timestamp, 'Close Long', latest_price, position_state.long_entry_size, "Trend reversal", strategy, user)
+                log_trade(timestamp, 'Close Long', position_state.long_entry_size, "Trend reversal", strategy, user)
 
             if position_state.short_position_opened and rsi_6 < strategy_config.short_sell_rsi_exit:
                 position_state.short_position_opened = False
-                log_trade(timestamp, 'Close Short', latest_price, position_state.short_entry_size, f"RSI < {strategy_config.short_sell_rsi_exit}", strategy, user)
+                log_trade(timestamp, 'Close Short', position_state.short_entry_size, f"RSI < {strategy_config.short_sell_rsi_exit}", strategy, user)
 
             if not position_state.short_position_opened and rsi_6 > strategy_config.short_sell_rsi_enter:
                 position_state.short_position_opened = True
-                log_trade(timestamp, 'Open Short', latest_price, position_size, f"RSI > {strategy_config.short_sell_rsi_enter}", strategy, user)
+                log_trade(timestamp, 'Open Short', position_size, f"RSI > {strategy_config.short_sell_rsi_enter}", strategy, user)
 
             if position_state.short_position_opened and position_state.short_positions == 1 and rsi_6 > strategy_config.short_sell_additional_enter:
-                log_trade(timestamp, 'Open Short', latest_price, position_size,
+                log_trade(timestamp, 'Open Short', position_size,
                           f"DCA RSI > {strategy_config.short_sell_additional_enter}", strategy, user)
