@@ -118,7 +118,8 @@ def force_close_all(strategy, user):
 
     def close(direction):
         log_trade(timestamp, f'Close {direction}',
-                  position_state.long_entry_size, "Manual close", strategy, user)
+                  position_state.long_entry_size if direction == 'Long' else position_state.short_entry_size,
+                  "Manual close", strategy, user)
 
     if position_state.long_position_opened:
         close('Long')

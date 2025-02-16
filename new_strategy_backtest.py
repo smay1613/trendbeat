@@ -32,7 +32,7 @@ if BacktestConfig.enabled:
     log("Started")
 
     user_manager = UserManager()
-    history_data_loader = HistoricalDataLoader(backload=False)
+    history_data_loader = HistoricalDataLoader(backload=False, forward_load=False)
 
     default_user = UserData('1')
     default_user.strategies.register_default_strategies()

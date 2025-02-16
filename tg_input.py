@@ -253,6 +253,7 @@ class BotHandler:
 
         if position_opened and position_close_confirmed:
             force_close_all(user_strategy, user)
+            await self.discard_message(update, context)
             return
 
         position_close_confirmation_state = query and query.data == "close_position_now"
