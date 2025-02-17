@@ -119,6 +119,7 @@ class BacktestConfig:
     enabled = False
     send_orders = True
     LEVERAGE = 15
+    send_orders = False
     INITIAL_CAPITAL = 1000.0
     symbol = 'BTCUSDT'
     interval_period = 'h'
